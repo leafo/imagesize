@@ -5,6 +5,16 @@ bytes = (...) -> P string.char ...
 
 read_chars = (len) -> P len
 
+-- debug function to read the next n bytes off the current position
+preview_bytes = (len=10, hex=true) ->
+  Cmt C(P(len)), (_, pos, str) ->
+    bs = { str\byte 1, len }
+    if hex
+      bs = [string.format "%x", b for b in *bs]
+
+    print table.concat bs, " "
+    true
+
 -- read the bytes and convert it to a number for capture
 -- big endian
 read_int = (len) ->
