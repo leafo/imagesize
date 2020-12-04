@@ -29,26 +29,26 @@ read_int = (len) ->
     out
 
 
+-- PNG: https://en.wikipedia.org/wiki/Portable_Network_Graphics#File_format
+
 -- the IHDR chunk should be the first chunk and contain the size information
 -- entire chunk is 13 bytes but we only care about the front of it
 PNG_IHDR = Ct Cg(read_int(4), "width") * Cg(read_int(4), "height") * Cg(read_int(1), "bit_depth")
 
+-- the length, chunk name, then the chunk data
+PNG_IHDR_CHUNK = P(4) * P("IHDR") * PNG_IHDR
+
+-- reads over a chunk and does nothing
 PNG_CHUNK = Cmt Ct(Cg(read_int(4), "length") * Cg(read_chars(4), "type")), (subject, pos, cap) ->
-  switch cap.type
-    when "IHDR"
-      chunk_data = subject\sub pos, pos + cap.length - 1
-      ihdr = PNG_IHDR\match chunk_data
-      unless ihdr
-        return nil, "failed to parse ihdr chunk"
+  -- + 4 to ignore the CRC footer on the chunk
+  pos + cap.length + 4, ihdr
 
-      -- + 4 to ignore the CRC footer on the chunk
-      return pos + cap.length + 4, ihdr
-    else
-      error "unknown chunk type: #{cap.type}"
+-- spec says we should see the IHDR chunk first, but this can be used to pass over other chunks if it's out of order for some reason
+PNG = bytes(137, 80, 78, 71, 13, 10, 26, 10) * P {
+  PNG_IHDR_CHUNK + PNG_CHUNK * V(1)
+}
 
-  true
-
-PNG = bytes(137, 80, 78, 71, 13, 10, 26, 10) * PNG_CHUNK
+-- JPG: https://en.wikipedia.org/wiki/JPEG#JPEG_files
 
 -- segments that do not have a 2 bytes length
 JPEG_SOI = bytes 255, 216
@@ -62,26 +62,10 @@ JPEG_FRAME_SEGMENT = bytes(255) * (bytes(192) + bytes(193) + bytes(194)) * P(2) 
 
 -- this reads over a segment and does nothing, we use the frame segment grammar above to parse the data from the frame
 JPEG_SEGMENT = bytes(255) * Cmt Ct(Cg(read_int(1), "marker") * Cg(read_int(2), "length")), (subject, pos, cap) ->
-  -- print ">>> matched segment @ #{pos} [#{string.format "%x", cap.marker}]"
-
+  -- advance past the dylanmic length of the segment
   -- the length here includes the two bytes for the length field
   real_length = cap.length - 2
-
-  -- example of how you would parse the segment...
-  -- segment_data = subject\sub pos, pos + real_length - 1
-  -- -- 192: 0xc0 Start Of Frame (baseline DCT)
-  -- -- 194: 0xc2 Start Of Frame (progressive DCT)
-  -- switch cap.marker
-  --   when 192, 194
-  --     frame = JPEG_FRAME\match segment_data
-  --     require("moon").p frame
-  --     unless frame
-  --       return nil, "failed to parse frame"
-  --   -- 254: 0xFE Comment
-  --   when 254
-  --     nil
-
-  return pos + real_length
+  pos + real_length
 
 -- try to read segments until we get a frame segments
 JPEG = JPEG_SOI * P {
