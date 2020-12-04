@@ -40,7 +40,7 @@ PNG_CHUNK = Cmt Ct(Cg(read_int(4), "length") * Cg(read_chars(4), "type")), (subj
 
 PNG = bytes(137, 80, 78, 71, 13, 10, 26, 10) * PNG_CHUNK
 
-detect_size = (bytes) ->
+scan_image_from_bytes = (bytes) ->
   out = PNG\match bytes
   if out
     return "png", out
@@ -48,4 +48,4 @@ detect_size = (bytes) ->
   nil, "failed to detect image"
 
 
-{ :detect_size }
+{ :scan_image_from_bytes }
