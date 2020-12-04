@@ -1,5 +1,5 @@
 
-import C, Ct, Cg, P, Cmt from require "lpeg"
+import C, Ct, Cg, P, Cmt, V from require "lpeg"
 
 bytes = (...) -> P string.char ...
 
@@ -50,12 +50,53 @@ PNG_CHUNK = Cmt Ct(Cg(read_int(4), "length") * Cg(read_chars(4), "type")), (subj
 
 PNG = bytes(137, 80, 78, 71, 13, 10, 26, 10) * PNG_CHUNK
 
+-- segments that do not have a 2 bytes length
+JPEG_SOI = bytes 255, 216
+JPEG_EOI = bytes 255, 217
+JPEG_SOS = bytes 255, 218 -- the length of this goes to end of file
+
+-- this only parses the front of the frame data, more stuff follows but we don't care
+JPEG_FRAME = Ct Cg(read_int(1), "bit_depth") * Cg(read_int(2), "height") * Cg(read_int(2), "width")
+-- SOF0, SOF1, SOF2
+JPEG_FRAME_SEGMENT = bytes(255) * (bytes(192) + bytes(193) + bytes(194)) * P(2) * JPEG_FRAME
+
+-- this reads over a segment and does nothing, we use the frame segment grammar above to parse the data from the frame
+JPEG_SEGMENT = bytes(255) * Cmt Ct(Cg(read_int(1), "marker") * Cg(read_int(2), "length")), (subject, pos, cap) ->
+  -- print ">>> matched segment @ #{pos} [#{string.format "%x", cap.marker}]"
+
+  -- the length here includes the two bytes for the length field
+  real_length = cap.length - 2
+
+  -- example of how you would parse the segment...
+  -- segment_data = subject\sub pos, pos + real_length - 1
+  -- -- 192: 0xc0 Start Of Frame (baseline DCT)
+  -- -- 194: 0xc2 Start Of Frame (progressive DCT)
+  -- switch cap.marker
+  --   when 192, 194
+  --     frame = JPEG_FRAME\match segment_data
+  --     require("moon").p frame
+  --     unless frame
+  --       return nil, "failed to parse frame"
+  --   -- 254: 0xFE Comment
+  --   when 254
+  --     nil
+
+  return pos + real_length
+
+-- try to read segments until we get a frame segments
+JPEG = JPEG_SOI * P {
+  JPEG_FRAME_SEGMENT + (JPEG_SEGMENT - JPEG_SOS - JPEG_EOI) * V(1)
+}
+
 scan_image_from_bytes = (bytes) ->
   out = PNG\match bytes
   if out
     return "png", out
 
-  nil, "failed to detect image"
+  out = JPEG\match bytes
+  if out
+    return "jpeg", out
 
+  nil, "failed to detect image"
 
 { :scan_image_from_bytes }
