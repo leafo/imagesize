@@ -129,6 +129,44 @@ describe "imagesize", ->
         bit_depth: 8
       }, data
 
+    it "detects from patial bytes", ->
+      import scan_image_from_bytes from require "imagesize"
+
+      err = { nil, "failed to detect image" }
+
+      success = {
+        "jpeg"
+        {
+          width: 57
+          height: 32
+          bit_depth: 8
+        }
+      }
+
+      expected = {
+        [1]: err
+        [20]: err
+        [21]: err
+        [100]: err
+        [150]: err
+        [166]: err
+        [167]: success
+        [168]: success
+        [200]: success
+      }
+
+      -- 167
+      results = for i=1,200
+        f = assert io.open "spec/test_images/stripped.jpg"
+        bytes = assert f\read i
+        out = { scan_image_from_bytes bytes }
+        if expected[i]
+          out
+        else
+          nil
+
+      assert.same expected, results
+
   describe "gif", ->
     it "detects global color table", ->
       import scan_image_from_bytes from require "imagesize"
