@@ -115,6 +115,20 @@ describe "imagesize", ->
         bit_depth: 8
       }, data
 
+    it "detects stripped jpeg", ->
+      import scan_image_from_bytes from require "imagesize"
+      f = assert io.open "spec/test_images/stripped.jpg"
+      bytes = assert f\read "*a"
+
+      format, data = scan_image_from_bytes bytes
+
+      assert.same "jpeg", format
+      assert.same {
+        width: 57
+        height: 32
+        bit_depth: 8
+      }, data
+
   describe "gif", ->
     it "detects global color table", ->
       import scan_image_from_bytes from require "imagesize"
