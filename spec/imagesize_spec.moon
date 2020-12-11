@@ -58,3 +58,34 @@ describe "imagesize", ->
         height: 32
         bit_depth: 8
       }, data
+
+  describe "gif", ->
+    --- with no global color table
+    front = "GIF89aXXXX#{string.char 0}XX"
+
+    to2bytes = (num) ->
+      b1 = num % 256
+      b2 = math.floor (num - b1) / 256
+      assert b2 < 256, "num is larger than two bytes"
+      string.char b1, b2
+
+    image_descriptor = (width, height) ->
+      "#{string.char 44, 0, 0, 0, 0}#{to2bytes width}#{to2bytes height}"
+
+    -- no global color table, no extensions or comments, small size
+    it "parses simple gif", ->
+      import scan_image_from_bytes from require "imagesize"
+      gif_bytes = "#{front}#{image_descriptor 27, 18}"
+
+      assert.same {
+        "gif"
+        {
+          width: 27
+          height: 18
+        }
+      }, {
+        scan_image_from_bytes gif_bytes
+      }
+
+
+
