@@ -8,7 +8,7 @@ formats
 
 Supported types:
 
-* PNG
+* PNG -- typically needs at least 25 bytes
 * JPG
 * GIF -- Reads with/height from first image descriptor
 
@@ -21,15 +21,24 @@ out. It will not verify that the file contains a valid image outside of that.
 
 ## Usage
 
-On successful scan, two values are returned, the type of the image (`png`,
-`jpeg`, `gif`), and a table containing at least a `width` and `height` field.
+### `scan_image_from_bytes(byte_string)`
+
+Attempts to detect the type and dimensions of an image from the bytes passed in. It's
+not necessary to pass the whole image, you can pass any amount of bytes and it
+will attempt to read the front of the file up until where it can find the
+dimensions.
+
+On success, two values are returned: the type of the image (`png`, `jpeg`,
+`gif`), and a table containing at least a `width` and `height` field.
 
 On error, `nil` and an error message is returned.
 
 ```lua
 local imagesize = require("imagesize")
 
-local bytes = file.open("some_image.png"):read("*a")
+-- this will attempt to detect the image from 200 bytes, but you're also
+welcome to pass the whole file
+local bytes = file.open("some_image.png"):read(200)
 
 local kind, dimensions = imagesize.scan_image_from_bytes(bytes)
 
