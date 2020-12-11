@@ -114,14 +114,18 @@ unpack_byte = (index, char) ->
 -- this looks for the first image descriptor and uses that size
 -- the logical screen size tends to not represent anything and is ignored
 GIF = P {
-  P("GIF") * (P("87a") + P("89a")) * V("logical_screen_descriptor") * V("graphic_extension")^-1 * V"image_descriptor"
+  P("GIF") * (P("87a") + P("89a")) * V("logical_screen_descriptor") * V"rest"
+
+  rest: V"image_descriptor" + (V("graphic_extension") + V("comment_extension")) * V"rest"
 
   graphic_extension: bytes(33, 249) * P(6)
 
   image_descriptor: bytes(44) * P(2) * P(2) * Ct Cg(read_int(2, "little"), "width") * Cg(read_int(2, "little"), "height")
 
+  comment_extension: bytes(33, 254) * Cmt(Ct(Cg read_int(1), "length"), (_, pos, cap) -> pos + cap.length)^0 * bytes(0)
+
   -- two two-byte sizes (not used) then packed byte describing global color table, then 2 more remaining bytes
-  logical_screen_descriptor: P(2) * P(2) * Cmt C(P(1)) * P(2), (_, pos, byte) ->
+  logical_screen_descriptor:  P(2) * P(2) * Cmt C(P(1)) * P(2), (_, pos, byte) ->
     {
       a: global_color_table_flag
       b: color_resolution
