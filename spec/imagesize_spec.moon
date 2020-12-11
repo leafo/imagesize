@@ -30,6 +30,62 @@ describe "imagesize", ->
         bit_depth: 8
       }, data
 
+    -- test each lengh from the first 30 bytes
+    it "detects from patial bytes", ->
+      import scan_image_from_bytes from require "imagesize"
+
+      results = for i=1,30
+        f = assert io.open "spec/test_images/image.png"
+        bytes = assert f\read i
+        { scan_image_from_bytes bytes }
+
+
+      err = { nil, "failed to detect image" }
+
+      success = {
+        "png"
+        {
+          width: 50
+          height: 23
+          bit_depth: 8
+        }
+      }
+
+      assert.same {
+        err
+        err
+        err
+        err
+        err
+        err
+        err
+        err
+        err
+        err
+
+        err
+        err
+        err
+        err
+        err
+        err
+        err
+        err
+        err
+        err
+
+        err
+        err
+        err
+        err
+        success
+        success
+        success
+        success
+        success
+        success
+      }, results
+
   describe "jpg", ->
     it "detects progressive jpg (SOF2)", ->
       import scan_image_from_bytes from require "imagesize"
