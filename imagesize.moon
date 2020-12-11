@@ -79,6 +79,64 @@ JPEG = JPEG_SOI * P {
   JPEG_FRAME_SEGMENT + (JPEG_SEGMENT - JPEG_SOS - JPEG_EOI) * V(1)
 }
 
+-- GIF: https://en.wikipedia.org/wiki/GIF#File_format
+-- https://www.w3.org/Graphics/GIF/spec-gif89a.txt
+-- http://giflib.sourceforge.net/whatsinagif/bits_and_bytes.html
+-- gif uses little endian
+
+-- unpacks each bit into var with the single character name at the index of the bit
+-- eg. unpack_byte("aaaabbbb", string.char(100))  -> { a = 6 [left 4 bits], b = 4 [right 4 bits]}
+unpack_byte = (index, char) ->
+  assert #index == 8, "index should be 8 chars long, assignment for each bit"
+
+  num = string.byte char
+  out = { }
+  counts = { }
+
+  for i=8,1,-1
+    k = index\sub i,i
+
+    bit = if num % 2 == 1
+      1
+    else
+      0
+
+    out[k] or= 0
+    counts[k] or= 0
+    out[k] = out[k] + bit * 2 ^ counts[k]
+    counts[k] += 1
+
+    -- remove odd bit, shift right by 1
+    num = (num - bit) / 2
+
+  out
+
+-- this looks for the first image descriptor and uses that size
+-- the logical screen size tends to not represent anything and is ignored
+GIF = P {
+  P("GIF") * (P("87a") + P("89a")) * V("logical_screen_descriptor") * V("graphic_extension")^-1 * V"image_descriptor"
+
+  graphic_extension: bytes(33, 249) * P(6)
+
+  image_descriptor: bytes(44) * P(2) * P(2) * Ct Cg(read_int(2, "little"), "width") * Cg(read_int(2, "little"), "height")
+
+  -- two two-byte sizes (not used) then packed byte describing global color table, then 2 more remaining bytes
+  logical_screen_descriptor: P(2) * P(2) * Cmt C(P(1)) * P(2), (_, pos, byte) ->
+    {
+      a: global_color_table_flag
+      b: color_resolution
+      c: sort_flag
+      d: size_of_global_color_table
+    } = unpack_byte "abbbcddd", byte
+
+    if global_color_table_flag == 1
+      -- consome the global color table
+      global_color_table_size = 3 * 2^(size_of_global_color_table+1)
+      pos + global_color_table_size
+    else
+      true
+}
+
 scan_image_from_bytes = (bytes) ->
   out = PNG\match bytes
   if out
@@ -87,6 +145,10 @@ scan_image_from_bytes = (bytes) ->
   out = JPEG\match bytes
   if out
     return "jpeg", out
+
+  out = GIF\match bytes
+  if out
+    return "gif", out
 
   nil, "failed to detect image"
 
