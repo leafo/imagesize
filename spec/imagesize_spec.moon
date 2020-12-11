@@ -2,11 +2,11 @@
 describe "imagesize", ->
   describe "png", ->
     it "detects png size", ->
-      import scan_image_from_bytes from require "imagesize"
+      import detect_image_from_bytes from require "imagesize"
       f = assert io.open "spec/test_images/image.png"
       bytes = assert f\read "*a"
 
-      format, data = scan_image_from_bytes bytes
+      format, data = detect_image_from_bytes bytes
 
       assert.same "png", format
       assert.same {
@@ -17,11 +17,11 @@ describe "imagesize", ->
 
     -- image has been run through png quant
     it "detects quant png size", ->
-      import scan_image_from_bytes from require "imagesize"
+      import detect_image_from_bytes from require "imagesize"
       f = assert io.open "spec/test_images/quant.png"
       bytes = assert f\read "*a"
 
-      format, data = scan_image_from_bytes bytes
+      format, data = detect_image_from_bytes bytes
 
       assert.same "png", format
       assert.same {
@@ -32,12 +32,12 @@ describe "imagesize", ->
 
     -- test each lengh from the first 30 bytes
     it "detects from patial bytes", ->
-      import scan_image_from_bytes from require "imagesize"
+      import detect_image_from_bytes from require "imagesize"
 
       results = for i=1,30
         f = assert io.open "spec/test_images/image.png"
         bytes = assert f\read i
-        { scan_image_from_bytes bytes }
+        { detect_image_from_bytes bytes }
 
 
       err = { nil, "failed to detect image" }
@@ -88,11 +88,11 @@ describe "imagesize", ->
 
   describe "jpg", ->
     it "detects progressive jpg (SOF2)", ->
-      import scan_image_from_bytes from require "imagesize"
+      import detect_image_from_bytes from require "imagesize"
       f = assert io.open "spec/test_images/progressive.jpg"
       bytes = assert f\read "*a"
 
-      format, data = scan_image_from_bytes bytes
+      format, data = detect_image_from_bytes bytes
 
       assert.same "jpeg", format
       assert.same {
@@ -102,11 +102,11 @@ describe "imagesize", ->
       }, data
 
     it "detects baseline jpg (SOF0)", ->
-      import scan_image_from_bytes from require "imagesize"
+      import detect_image_from_bytes from require "imagesize"
       f = assert io.open "spec/test_images/baseline.jpg"
       bytes = assert f\read "*a"
 
-      format, data = scan_image_from_bytes bytes
+      format, data = detect_image_from_bytes bytes
 
       assert.same "jpeg", format
       assert.same {
@@ -116,11 +116,11 @@ describe "imagesize", ->
       }, data
 
     it "detects stripped jpeg", ->
-      import scan_image_from_bytes from require "imagesize"
+      import detect_image_from_bytes from require "imagesize"
       f = assert io.open "spec/test_images/stripped.jpg"
       bytes = assert f\read "*a"
 
-      format, data = scan_image_from_bytes bytes
+      format, data = detect_image_from_bytes bytes
 
       assert.same "jpeg", format
       assert.same {
@@ -130,7 +130,7 @@ describe "imagesize", ->
       }, data
 
     it "detects from patial bytes", ->
-      import scan_image_from_bytes from require "imagesize"
+      import detect_image_from_bytes from require "imagesize"
 
       err = { nil, "failed to detect image" }
 
@@ -159,7 +159,7 @@ describe "imagesize", ->
       results = for i=1,200
         f = assert io.open "spec/test_images/stripped.jpg"
         bytes = assert f\read i
-        out = { scan_image_from_bytes bytes }
+        out = { detect_image_from_bytes bytes }
         if expected[i]
           out
         else
@@ -169,11 +169,11 @@ describe "imagesize", ->
 
   describe "gif", ->
     it "detects global color table", ->
-      import scan_image_from_bytes from require "imagesize"
+      import detect_image_from_bytes from require "imagesize"
       f = assert io.open "spec/test_images/global.gif"
       bytes = assert f\read "*a"
 
-      format, data = scan_image_from_bytes bytes
+      format, data = detect_image_from_bytes bytes
 
       assert.same "gif", format, "image format"
       assert.same {
@@ -183,11 +183,11 @@ describe "imagesize", ->
 
 
     it "detects global color table with ext", ->
-      import scan_image_from_bytes from require "imagesize"
+      import detect_image_from_bytes from require "imagesize"
       f = assert io.open "spec/test_images/global_ext.gif"
       bytes = assert f\read "*a"
 
-      format, data = scan_image_from_bytes bytes
+      format, data = detect_image_from_bytes bytes
 
       assert.same "gif", format, "image format"
       assert.same {
@@ -196,7 +196,7 @@ describe "imagesize", ->
       }, data
 
     it "detects from patial read", ->
-      import scan_image_from_bytes from require "imagesize"
+      import detect_image_from_bytes from require "imagesize"
 
       local count
 
@@ -204,7 +204,7 @@ describe "imagesize", ->
         f = assert io.open "spec/test_images/global.gif"
         bytes = assert f\read i
         f\close!
-        format, data = scan_image_from_bytes bytes
+        format, data = detect_image_from_bytes bytes
         if format
 
 
@@ -234,7 +234,7 @@ describe "imagesize", ->
 
       -- no global color table, no extensions or comments, small size
       it "parses simple gif", ->
-        import scan_image_from_bytes from require "imagesize"
+        import detect_image_from_bytes from require "imagesize"
         gif_bytes = "#{front}#{image_descriptor 27, 18}"
 
         assert.same {
@@ -244,11 +244,11 @@ describe "imagesize", ->
             height: 18
           }
         }, {
-          scan_image_from_bytes gif_bytes
+          detect_image_from_bytes gif_bytes
         }
 
       it "parses gif with large size", ->
-        import scan_image_from_bytes from require "imagesize"
+        import detect_image_from_bytes from require "imagesize"
         gif_bytes = "#{front}#{image_descriptor 1832, 1600}"
 
         assert.same {
@@ -258,11 +258,11 @@ describe "imagesize", ->
             height: 1600
           }
         }, {
-          scan_image_from_bytes gif_bytes
+          detect_image_from_bytes gif_bytes
         }
 
       it "parses gif with color table", ->
-        import scan_image_from_bytes from require "imagesize"
+        import detect_image_from_bytes from require "imagesize"
 
         len = 3
 
@@ -277,12 +277,12 @@ describe "imagesize", ->
             height: 77
           }
         }, {
-          scan_image_from_bytes gif_bytes
+          detect_image_from_bytes gif_bytes
         }
 
 
       it "parses gif with comment", ->
-        import scan_image_from_bytes from require "imagesize"
+        import detect_image_from_bytes from require "imagesize"
 
         comment = "#{string.char 33, 254, 5}HELLO#{string.char 0}"
 
@@ -295,5 +295,5 @@ describe "imagesize", ->
             height: 29
           }
         }, {
-          scan_image_from_bytes gif_bytes
+          detect_image_from_bytes gif_bytes
         }

@@ -21,7 +21,7 @@ out. It will not verify that the file contains a valid image outside of that.
 
 ## Usage
 
-### `scan_image_from_bytes(byte_string)`
+### `detect_image_from_bytes(byte_string)`
 
 Attempts to detect the type and dimensions of an image from the bytes passed in. It's
 not necessary to pass the whole image, you can pass any amount of bytes and it
@@ -40,7 +40,7 @@ local imagesize = require("imagesize")
 welcome to pass the whole file
 local bytes = file.open("some_image.png"):read(200)
 
-local kind, dimensions = imagesize.scan_image_from_bytes(bytes)
+local kind, dimensions = imagesize.detect_image_from_bytes(bytes)
 
 -- kind --> png
 -- dimensions --> { width = 25, height = 100, depth = 8 }

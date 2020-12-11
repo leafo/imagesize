@@ -156,8 +156,8 @@ local GIF = P({
     end
   end)
 })
-local scan_image_from_bytes
-scan_image_from_bytes = function(bytes)
+local detect_image_from_bytes
+detect_image_from_bytes = function(bytes)
   local out = PNG:match(bytes)
   if out then
     return "png", out
@@ -173,7 +173,7 @@ scan_image_from_bytes = function(bytes)
   return nil, "failed to detect image"
 end
 return {
-  scan_image_from_bytes = scan_image_from_bytes,
+  detect_image_from_bytes = detect_image_from_bytes,
   JPEG = JPEG,
   GIF = GIF,
   PNG = PNG

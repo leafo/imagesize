@@ -160,7 +160,7 @@ GIF = P {
       true
 }
 
-scan_image_from_bytes = (bytes) ->
+detect_image_from_bytes = (bytes) ->
   out = PNG\match bytes
   if out
     return "png", out
@@ -175,4 +175,4 @@ scan_image_from_bytes = (bytes) ->
 
   nil, "failed to detect image"
 
-{ :scan_image_from_bytes, :JPEG, :GIF, :PNG }
+{ :detect_image_from_bytes, :JPEG, :GIF, :PNG }
