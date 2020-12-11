@@ -15,16 +15,23 @@ preview_bytes = (len=10, hex=true) ->
     print table.concat bs, " "
     true
 
--- read the bytes and convert it to a number for capture
--- big endian
-read_int = (len) ->
+-- read the bytes in big endian and capture to a Lua number
+read_int = (len, endian="big") ->
   P(len) / (str) ->
     out = 0
-    offset = len - 1
 
-    for b in *{ str\byte 1, len }
-      out += 2^(8 * offset) * b
-      offset -= 1
+    switch endian
+      when "big"
+        offset = len - 1
+        for b in *{ str\byte 1, len }
+          out += 2^(8 * offset) * b
+          offset -= 1
+
+      when "little"
+        for idx, b in ipairs { str\byte 1, len }
+          out += 2^(8 * (idx-1)) * b
+      else
+        error "unknown endian"
 
     out
 
