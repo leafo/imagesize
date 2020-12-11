@@ -16,7 +16,7 @@ out. It will not verify that the file contains a valid image outside of that.
 
 ## Install
 
-`luarocks install imagesize`
+`luarocks install https://raw.githubusercontent.com/leafo/imagesize/main/imagesize-dev-1.rockspec`
 
 ## Usage
 
@@ -28,7 +28,7 @@ On error, `nil` and an error message is returned.
 ```lua
 local imagesize = require("imagesize")
 
-local bytes = file.open("some_image.png"):read("*")
+local bytes = file.open("some_image.png"):read("*a")
 
 local kind, dimensions = imagesize.scan_image_from_bytes(bytes)
 

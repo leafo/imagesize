@@ -13,13 +13,13 @@ description = {
 
 dependencies = {
   "lua >= 5.1",
-	"lpeg"
+  "lpeg"
 }
 
 build = {
   type = "builtin",
   modules = {
-			["imagesize"] = "imagesize/init.lua",
+    ["imagesize"] = "imagesize/init.lua",
   }
 }
 
