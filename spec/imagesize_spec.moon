@@ -195,6 +195,30 @@ describe "imagesize", ->
         height: 10
       }, data
 
+    it "detects from patial read", ->
+      import scan_image_from_bytes from require "imagesize"
+
+      local count
+
+      for i=1,1000
+        f = assert io.open "spec/test_images/global.gif"
+        bytes = assert f\read i
+        f\close!
+        format, data = scan_image_from_bytes bytes
+        if format
+
+
+          assert.same "gif", format, "image format"
+          assert.same {
+            width: 24
+            height: 49
+          }, data
+
+          count = i
+          break
+
+      assert.same 790, count
+
     describe "synthesized", ->
       --- with no global color table
       front = "GIF89aXXXX#{string.char 0}XX"
