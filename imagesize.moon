@@ -121,7 +121,12 @@ GIF = P {
   image_descriptor: bytes(44) * P(2) * P(2) * Ct Cg(read_int(2, "little"), "width") * Cg(read_int(2, "little"), "height")
 
   graphic_extension: bytes(33, 249) * P(6)
-  comment_extension: bytes(33, 254) * Cmt(Ct(Cg read_int(1), "length"), (_, pos, cap) -> pos + cap.length)^0 * bytes(0)
+  comment_extension: bytes(33, 254) * Cmt(read_int(1), (_, pos, length) ->
+    return false if length == 0
+    pos + length
+  )^1 * bytes(0)
+
+  -- there is only one application extension, for looping gif
   application_extension: bytes(33, 255) * P(17)
 
   -- two two-byte sizes (not used) then packed byte describing global color table, then 2 more remaining bytes

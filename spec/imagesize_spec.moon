@@ -148,3 +148,20 @@ describe "imagesize", ->
           scan_image_from_bytes gif_bytes
         }
 
+
+      it "parses gif with comment", ->
+        import scan_image_from_bytes from require "imagesize"
+
+        comment = "#{string.char 33, 254, 5}HELLO#{string.char 0}"
+
+        gif_bytes = "#{front}#{comment}#{image_descriptor 95, 29}"
+
+        assert.same {
+          "gif"
+          {
+            width: 95
+            height: 29
+          }
+        }, {
+          scan_image_from_bytes gif_bytes
+        }
