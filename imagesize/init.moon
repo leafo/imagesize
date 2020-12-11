@@ -48,7 +48,12 @@ PNG_IHDR_CHUNK = P(4) * P("IHDR") * PNG_IHDR
 -- reads over a chunk and does nothing
 PNG_CHUNK = Cmt Ct(Cg(read_int(4), "length") * Cg(read_chars(4), "type")), (subject, pos, cap) ->
   -- + 4 to ignore the CRC footer on the chunk
-  pos + cap.length + 4
+  out = pos + cap.length + 4
+
+  if out > #subject
+    return false
+
+  out
 
 -- spec says we should see the IHDR chunk first, but this can be used to pass over other chunks if it's out of order for some reason
 PNG = bytes(137, 80, 78, 71, 13, 10, 26, 10) * P {
@@ -72,7 +77,12 @@ JPEG_SEGMENT = bytes(255) * Cmt Ct(Cg(read_int(1), "marker") * Cg(read_int(2), "
   -- advance past the dylanmic length of the segment
   -- the length here includes the two bytes for the length field
   real_length = cap.length - 2
-  pos + real_length
+  out = pos + real_length
+
+  if out > #subject
+    return false
+
+  out
 
 -- try to read segments until we get a frame segments
 JPEG = JPEG_SOI * P {
@@ -121,16 +131,18 @@ GIF = P {
   image_descriptor: bytes(44) * P(2) * P(2) * Ct Cg(read_int(2, "little"), "width") * Cg(read_int(2, "little"), "height")
 
   graphic_extension: bytes(33, 249) * P(6)
-  comment_extension: bytes(33, 254) * Cmt(read_int(1), (_, pos, length) ->
+  comment_extension: bytes(33, 254) * Cmt(read_int(1), (subject, pos, length) ->
     return false if length == 0
-    pos + length
+    out = pos + length
+    return false if out > #subject
+    out
   )^1 * bytes(0)
 
   -- there is only one application extension, for looping gif
   application_extension: bytes(33, 255) * P(17)
 
   -- two two-byte sizes (not used) then packed byte describing global color table, then 2 more remaining bytes
-  logical_screen_descriptor:  P(2) * P(2) * Cmt C(P(1)) * P(2), (_, pos, byte) ->
+  logical_screen_descriptor:  P(2) * P(2) * Cmt C(P(1)) * P(2), (subject, pos, byte) ->
     {
       a: global_color_table_flag
       b: color_resolution
@@ -141,7 +153,9 @@ GIF = P {
     if global_color_table_flag == 1
       -- consome the global color table
       global_color_table_size = 3 * 2^(size_of_global_color_table+1)
-      pos + global_color_table_size
+      out = pos + global_color_table_size
+      return false if out > #subject
+      out
     else
       true
 }
@@ -161,4 +175,4 @@ scan_image_from_bytes = (bytes) ->
 
   nil, "failed to detect image"
 
-{ :scan_image_from_bytes }
+{ :scan_image_from_bytes, :JPEG, :GIF, :PNG }

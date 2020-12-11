@@ -72,7 +72,11 @@ end
 local PNG_IHDR = Ct(Cg(read_int(4), "width") * Cg(read_int(4), "height") * Cg(read_int(1), "bit_depth"))
 local PNG_IHDR_CHUNK = P(4) * P("IHDR") * PNG_IHDR
 local PNG_CHUNK = Cmt(Ct(Cg(read_int(4), "length") * Cg(read_chars(4), "type")), function(subject, pos, cap)
-  return pos + cap.length + 4
+  local out = pos + cap.length + 4
+  if out > #subject then
+    return false
+  end
+  return out
 end)
 local PNG = bytes(137, 80, 78, 71, 13, 10, 26, 10) * P({
   PNG_IHDR_CHUNK + PNG_CHUNK * V(1)
@@ -84,7 +88,11 @@ local JPEG_FRAME = Ct(Cg(read_int(1), "bit_depth") * Cg(read_int(2), "height") *
 local JPEG_FRAME_SEGMENT = bytes(255) * (bytes(192) + bytes(193) + bytes(194)) * P(2) * JPEG_FRAME
 local JPEG_SEGMENT = bytes(255) * Cmt(Ct(Cg(read_int(1), "marker") * Cg(read_int(2), "length")), function(subject, pos, cap)
   local real_length = cap.length - 2
-  return pos + real_length
+  local out = pos + real_length
+  if out > #subject then
+    return false
+  end
+  return out
 end)
 local JPEG = JPEG_SOI * P({
   JPEG_FRAME_SEGMENT + (JPEG_SEGMENT - JPEG_SOS - JPEG_EOI) * V(1)
@@ -119,14 +127,18 @@ local GIF = P({
   rest = V("image_descriptor") + (V("graphic_extension") + V("comment_extension") + V("application_extension")) * V("rest"),
   image_descriptor = bytes(44) * P(2) * P(2) * Ct(Cg(read_int(2, "little"), "width") * Cg(read_int(2, "little"), "height")),
   graphic_extension = bytes(33, 249) * P(6),
-  comment_extension = bytes(33, 254) * Cmt(read_int(1), function(_, pos, length)
+  comment_extension = bytes(33, 254) * Cmt(read_int(1), function(subject, pos, length)
     if length == 0 then
       return false
     end
-    return pos + length
+    local out = pos + length
+    if out > #subject then
+      return false
+    end
+    return out
   end) ^ 1 * bytes(0),
   application_extension = bytes(33, 255) * P(17),
-  logical_screen_descriptor = P(2) * P(2) * Cmt(C(P(1)) * P(2), function(_, pos, byte)
+  logical_screen_descriptor = P(2) * P(2) * Cmt(C(P(1)) * P(2), function(subject, pos, byte)
     local global_color_table_flag, color_resolution, sort_flag, size_of_global_color_table
     do
       local _obj_0 = unpack_byte("abbbcddd", byte)
@@ -134,7 +146,11 @@ local GIF = P({
     end
     if global_color_table_flag == 1 then
       local global_color_table_size = 3 * 2 ^ (size_of_global_color_table + 1)
-      return pos + global_color_table_size
+      local out = pos + global_color_table_size
+      if out > #subject then
+        return false
+      end
+      return out
     else
       return true
     end
@@ -157,5 +173,8 @@ scan_image_from_bytes = function(bytes)
   return nil, "failed to detect image"
 end
 return {
-  scan_image_from_bytes = scan_image_from_bytes
+  scan_image_from_bytes = scan_image_from_bytes,
+  JPEG = JPEG,
+  GIF = GIF,
+  PNG = PNG
 }
