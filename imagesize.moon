@@ -48,7 +48,7 @@ PNG_IHDR_CHUNK = P(4) * P("IHDR") * PNG_IHDR
 -- reads over a chunk and does nothing
 PNG_CHUNK = Cmt Ct(Cg(read_int(4), "length") * Cg(read_chars(4), "type")), (subject, pos, cap) ->
   -- + 4 to ignore the CRC footer on the chunk
-  pos + cap.length + 4, ihdr
+  pos + cap.length + 4
 
 -- spec says we should see the IHDR chunk first, but this can be used to pass over other chunks if it's out of order for some reason
 PNG = bytes(137, 80, 78, 71, 13, 10, 26, 10) * P {
