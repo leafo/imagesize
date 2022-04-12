@@ -176,5 +176,6 @@ return {
   detect_image_from_bytes = detect_image_from_bytes,
   JPEG = JPEG,
   GIF = GIF,
-  PNG = PNG
+  PNG = PNG,
+  version = "1.0.0"
 }

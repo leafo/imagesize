@@ -175,4 +175,4 @@ detect_image_from_bytes = (bytes) ->
 
   nil, "failed to detect image"
 
-{ :detect_image_from_bytes, :JPEG, :GIF, :PNG }
+{ :detect_image_from_bytes, :JPEG, :GIF, :PNG, version: "1.0.0" }
