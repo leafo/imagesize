@@ -2,9 +2,8 @@
 
 ![test](https://github.com/leafo/imagesize/workflows/test/badge.svg)
 
-Detect the size of common image formats while trying to read as few bytes as
-possible. Byte strings are parsed using LPeg to extract headers from image
-formats
+Detect the size of images, with various standard formats supported, while trying to read as few bytes as
+possible. Byte strings are parsed using LPeg to extract headers from the image formats.
 
 Supported types:
 
