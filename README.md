@@ -12,7 +12,7 @@ Supported types:
 * JPEG &mdash; Typically needs around 160 for optimized images, upwards to around 1k or more with EXIF, etc.
 * GIF &mdash; Reads with/height from first image descriptor. Typically needs around 700+ bytes, depends on how palette is stored
 
-This library will only read only of the string to identify the size, then bail
+This library will only read the head of the string to identify the format and dimensions, then bail
 out. It will not verify that the file contains a valid image outside of that.
 
 LPeg does not support reading from a stream so you will have to append a buffer
