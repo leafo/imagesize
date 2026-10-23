@@ -212,6 +212,26 @@ GIF = P {
       true
 }
 
+-- WebP: https://developers.google.com/speed/webp/docs/riff_container
+-- the first chunk determines how the size is stored
+
+-- lossy: 3 byte frame tag, start code, then 14 bit dimensions with 2 bit scale
+webp_vp8_size = read_int(2, "little") / (n) -> n % 2^14
+WEBP_VP8 = P("VP8 ") * P(4) * P(3) * bytes(157, 1, 42) * Ct Cg(webp_vp8_size, "width") * Cg(webp_vp8_size, "height")
+
+-- lossless: signature byte, then 14 bits each of width - 1 and height - 1
+WEBP_VP8L = P("VP8L") * P(4) * bytes(47) * read_int(4, "little") / (n) ->
+  {
+    width: n % 2^14 + 1
+    height: math.floor(n / 2^14) % 2^14 + 1
+  }
+
+-- extended (alpha, animation, metadata): flags and reserved bytes, then 24 bit canvas width - 1 and height - 1
+webp_vp8x_size = read_int(3, "little") / (n) -> n + 1
+WEBP_VP8X = P("VP8X") * P(4) * P(4) * Ct Cg(webp_vp8x_size, "width") * Cg(webp_vp8x_size, "height")
+
+WEBP = P("RIFF") * P(4) * P("WEBP") * (WEBP_VP8 + WEBP_VP8L + WEBP_VP8X)
+
 detect_image_from_bytes = (bytes) ->
   out = PNG\match bytes
   if out
@@ -225,6 +245,10 @@ detect_image_from_bytes = (bytes) ->
   if out
     return "gif", out
 
+  out = WEBP\match bytes
+  if out
+    return "webp", out
+
   nil, "failed to detect image"
 
-{ :detect_image_from_bytes, :JPEG, :GIF, :PNG, version: "1.0.0" }
+{ :detect_image_from_bytes, :JPEG, :GIF, :PNG, :WEBP, version: "1.0.0" }

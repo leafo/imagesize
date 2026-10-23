@@ -229,6 +229,21 @@ local GIF = P({
     end
   end)
 })
+local webp_vp8_size = read_int(2, "little") / function(n)
+  return n % 2 ^ 14
+end
+local WEBP_VP8 = P("VP8 ") * P(4) * P(3) * bytes(157, 1, 42) * Ct(Cg(webp_vp8_size, "width") * Cg(webp_vp8_size, "height"))
+local WEBP_VP8L = P("VP8L") * P(4) * bytes(47) * read_int(4, "little") / function(n)
+  return {
+    width = n % 2 ^ 14 + 1,
+    height = math.floor(n / 2 ^ 14) % 2 ^ 14 + 1
+  }
+end
+local webp_vp8x_size = read_int(3, "little") / function(n)
+  return n + 1
+end
+local WEBP_VP8X = P("VP8X") * P(4) * P(4) * Ct(Cg(webp_vp8x_size, "width") * Cg(webp_vp8x_size, "height"))
+local WEBP = P("RIFF") * P(4) * P("WEBP") * (WEBP_VP8 + WEBP_VP8L + WEBP_VP8X)
 local detect_image_from_bytes
 detect_image_from_bytes = function(bytes)
   local out = PNG:match(bytes)
@@ -243,6 +258,10 @@ detect_image_from_bytes = function(bytes)
   if out then
     return "gif", out
   end
+  out = WEBP:match(bytes)
+  if out then
+    return "webp", out
+  end
   return nil, "failed to detect image"
 end
 return {
@@ -250,5 +269,6 @@ return {
   JPEG = JPEG,
   GIF = GIF,
   PNG = PNG,
+  WEBP = WEBP,
   version = "1.0.0"
 }

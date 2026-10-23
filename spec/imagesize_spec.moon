@@ -1,3 +1,5 @@
+unpack = table.unpack or unpack
+
 
 describe "imagesize", ->
   describe "png", ->
@@ -454,3 +456,62 @@ describe "imagesize", ->
 
         it "fails on truncated sub-block", ->
           assert.same {nil, "failed to detect image"}, parse_with "#{string.char 33, 254, 50}HELLO"
+
+  describe "webp", ->
+    detect_file = (fname, len="*a") ->
+      import detect_image_from_bytes from require "imagesize"
+      f = assert io.open "spec/test_images/#{fname}"
+      bytes = assert f\read len
+      f\close!
+      { detect_image_from_bytes bytes }
+
+    it "detects lossy webp (VP8)", ->
+      assert.same { "webp", { width: 301, height: 67 } }, detect_file "lossy.webp"
+
+    it "detects lossless webp (VP8L)", ->
+      assert.same { "webp", { width: 77, height: 300 } }, detect_file "lossless.webp"
+
+    it "detects webp with alpha (VP8X)", ->
+      assert.same { "webp", { width: 45, height: 33 } }, detect_file "alpha.webp"
+
+    it "detects animated webp (VP8X)", ->
+      assert.same { "webp", { width: 260, height: 30 } }, detect_file "animated.webp"
+
+    it "detects from partial bytes", ->
+      err = { nil, "failed to detect image" }
+
+      for {fname, needed} in *{{"lossy.webp", 30}, {"lossless.webp", 25}, {"alpha.webp", 30}}
+        assert.same err, detect_file fname, needed - 1
+        assert.same "webp", detect_file(fname, needed)[1]
+
+    describe "synthesized", ->
+      le = (num, len) ->
+        string.char unpack for i=0,len-1
+          math.floor(num / 256^i) % 256
+
+      riff = (chunk) -> "RIFF#{le 4 + #chunk, 4}WEBP#{chunk}"
+
+      it "ignores VP8 scale bits", ->
+        import detect_image_from_bytes from require "imagesize"
+        -- top 2 bits of each dimension are the upscale factor
+        chunk = "VP8 #{le 10, 4}#{string.char 0, 0, 0, 157, 1, 42}#{le 3 * 2^14 + 640, 2}#{le 2^14 + 480, 2}"
+        assert.same { "webp", { width: 640, height: 480 } }, { detect_image_from_bytes riff chunk }
+
+      it "reads max VP8L size", ->
+        import detect_image_from_bytes from require "imagesize"
+        chunk = "VP8L#{le 5, 4}#{string.char 47}#{le 2^28 - 1, 4}"
+        assert.same { "webp", { width: 2^14, height: 2^14 } }, { detect_image_from_bytes riff chunk }
+
+      it "reads 24 bit VP8X size", ->
+        import detect_image_from_bytes from require "imagesize"
+        chunk = "VP8X#{le 10, 4}#{le 0, 4}#{le 99999, 3}#{le 0, 3}"
+        assert.same { "webp", { width: 100000, height: 1 } }, { detect_image_from_bytes riff chunk }
+
+      it "fails on VP8 without start code", ->
+        import detect_image_from_bytes from require "imagesize"
+        chunk = "VP8 #{le 10, 4}#{string.char 0, 0, 0, 0, 0, 0}#{le 640, 2}#{le 480, 2}"
+        assert.same { nil, "failed to detect image" }, { detect_image_from_bytes riff chunk }
+
+      it "fails on non-webp RIFF", ->
+        import detect_image_from_bytes from require "imagesize"
+        assert.same { nil, "failed to detect image" }, { detect_image_from_bytes "RIFF#{le 100, 4}WAVEfmt #{le 16, 4}" }
