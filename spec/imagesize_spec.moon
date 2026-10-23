@@ -215,6 +215,78 @@ describe "imagesize", ->
         sos = string.char 0xFF, 0xFF, 0xDA, 0, 2
         assert.same {nil, "failed to detect image"}, { detect_image_from_bytes "#{soi}#{sos}#{frame 0xC0}" }
 
+      describe "exif", ->
+        int = (num, len, endian) ->
+          bs = for i=len-1,0,-1
+            math.floor(num / 256^i) % 256
+          bs = [bs[i] for i=#bs,1,-1] if endian == "little"
+          string.char unpack bs
+
+        app1 = (data) ->
+          "#{string.char 0xFF, 0xE1}#{int #data + 2, 2}#{data}"
+
+        -- tags is a list of {tag, value} stored as SHORT entries in IFD0
+        exif = (tags, endian="big", ifd_offset=8) ->
+          header = endian == "big" and "MM" or "II"
+          entries = for {tag, value} in *tags
+            "#{int tag, 2, endian}#{int 3, 2, endian}#{int 1, 4, endian}#{int value, 2, endian}\0\0"
+
+          app1 "Exif\0\0#{header}#{int 42, 2, endian}#{int ifd_offset, 4, endian}#{int #tags, 2, endian}#{table.concat entries}#{int 0, 4, endian}"
+
+        with_orientation = (orientation) ->
+          {
+            "jpeg"
+            {
+              width: 44
+              height: 77
+              bit_depth: 8
+              :orientation
+            }
+          }
+
+        parse_with = (segment) ->
+          import detect_image_from_bytes from require "imagesize"
+          { detect_image_from_bytes "#{soi}#{segment}#{frame 0xC0}" }
+
+        it "reads big endian orientation", ->
+          assert.same with_orientation(6), parse_with exif {{0x0112, 6}}
+
+        it "reads little endian orientation", ->
+          assert.same with_orientation(8), parse_with exif {{0x0112, 8}}, "little"
+
+        it "reads orientation after other tags", ->
+          assert.same with_orientation(3), parse_with exif {{0x0100, 500}, {0x0101, 300}, {0x0112, 3}}
+
+        it "reads orientation when exif is not the first segment", ->
+          assert.same with_orientation(5), parse_with "#{app0}#{exif {{0x0112, 5}}}"
+
+        it "uses the first exif orientation", ->
+          assert.same with_orientation(6), parse_with "#{exif {{0x0112, 6}}}#{exif {{0x0112, 8}}}"
+
+        it "ignores exif without orientation", ->
+          assert.same expected, parse_with exif {{0x0100, 500}}
+
+        it "ignores out of range orientation", ->
+          assert.same expected, parse_with exif {{0x0112, 9}}
+
+        it "ignores IFD offset past the segment", ->
+          assert.same expected, parse_with exif {{0x0112, 6}}, "big", 5000
+
+        it "stops at entries past the segment", ->
+          bytes = exif {{0x0100, 500}}
+          -- the entry count is the 2 bytes after the 6 byte "Exif" header and 8 byte TIFF header
+          count_pos = 4 + 6 + 8 + 1
+          bytes = "#{bytes\sub 1, count_pos - 1}#{int 1000, 2}#{bytes\sub count_pos + 2}"
+          assert.same expected, parse_with bytes
+
+        it "ignores non-exif APP1 segment", ->
+          assert.same expected, parse_with app1 "http://ns.adobe.com/xap/1.0/\0<x:xmpmeta/>"
+
+        it "fails on truncated APP1 segment", ->
+          import detect_image_from_bytes from require "imagesize"
+          bytes = exif {{0x0112, 6}}
+          assert.same {nil, "failed to detect image"}, { detect_image_from_bytes "#{soi}#{bytes\sub 1, #bytes - 4}" }
+
   describe "gif", ->
     it "detects global color table", ->
       import detect_image_from_bytes from require "imagesize"

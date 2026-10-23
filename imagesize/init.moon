@@ -16,25 +16,28 @@ preview_bytes = (len=10, hex=true) ->
     print table.concat bs, " "
     true
 
+-- decode len bytes of str starting at pos to a Lua number
+decode_int = (str, pos, len, endian="big") ->
+  out = 0
+
+  switch endian
+    when "big"
+      offset = len - 1
+      for b in *{ str\byte pos, pos + len - 1 }
+        out += 2^(8 * offset) * b
+        offset -= 1
+
+    when "little"
+      for idx, b in ipairs { str\byte pos, pos + len - 1 }
+        out += 2^(8 * (idx-1)) * b
+    else
+      error "unknown endian"
+
+  out
+
 -- read the bytes in big endian and capture to a Lua number
 read_int = (len, endian="big") ->
-  P(len) / (str) ->
-    out = 0
-
-    switch endian
-      when "big"
-        offset = len - 1
-        for b in *{ str\byte 1, len }
-          out += 2^(8 * offset) * b
-          offset -= 1
-
-      when "little"
-        for idx, b in ipairs { str\byte 1, len }
-          out += 2^(8 * (idx-1)) * b
-      else
-        error "unknown endian"
-
-    out
+  P(len) / (str) -> decode_int str, 1, len, endian
 
 
 -- PNG: https://en.wikipedia.org/wiki/Portable_Network_Graphics#File_format
@@ -91,10 +94,50 @@ JPEG_SEGMENT = JPEG_MARKER * Cmt Ct(Cg(read_int(1), "marker") * Cg(read_int(2), 
 
   out
 
--- try to read segments until we get a frame segments
-JPEG = JPEG_SOI * P {
-  JPEG_FRAME_SEGMENT + (JPEG_SEGMENT - JPEG_SOS - JPEG_EOI) * V(1)
-}
+-- EXIF: https://www.cipa.jp/std/documents/e/DC-008-2012_E.pdf
+-- APP1 data is "Exif\0\0" followed by a TIFF header and IFD0, which is where
+-- the orientation tag lives. Returns nil if anything is missing or out of
+-- bounds, stop is the index of the last byte of the segment
+parse_exif_orientation = (str, start, stop) ->
+  return unless start + 5 <= stop and str\sub(start, start + 5) == "Exif\0\0"
+
+  tiff = start + 6
+  return unless tiff + 7 <= stop
+
+  endian = switch str\sub tiff, tiff + 1
+    when "II" then "little"
+    when "MM" then "big"
+    else return
+
+  return unless decode_int(str, tiff + 2, 2, endian) == 42
+
+  ifd = tiff + decode_int str, tiff + 4, 4, endian
+  return unless ifd + 1 <= stop
+
+  for i=0, decode_int(str, ifd, 2, endian) - 1
+    entry = ifd + 2 + i * 12
+    return if entry + 11 > stop
+
+    if decode_int(str, entry, 2, endian) == 0x0112
+      orientation = decode_int str, entry + 8, 2, endian
+      return if orientation < 1 or orientation > 8
+      return orientation
+
+JPEG_EXIF_SEGMENT = JPEG_MARKER * bytes(225) * Cmt read_int(2), (subject, pos, length) ->
+  return false if length < 2
+  out = pos + length - 2
+  return false if out > #subject
+  out, parse_exif_orientation subject, pos, out - 1
+
+-- try to read segments until we get a frame segments. The first orientation
+-- found in an APP1 segment is merged into the frame
+JPEG = JPEG_SOI * P({
+  JPEG_FRAME_SEGMENT + JPEG_EXIF_SEGMENT * V(1) + (JPEG_SEGMENT - JPEG_SOS - JPEG_EOI) * V(1)
+}) / (...) ->
+  caps = {...}
+  frame = caps[#caps]
+  frame.orientation = caps[1] if #caps > 1
+  frame
 
 -- GIF: https://en.wikipedia.org/wiki/GIF#File_format
 -- https://www.w3.org/Graphics/GIF/spec-gif89a.txt

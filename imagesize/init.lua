@@ -43,34 +43,41 @@ preview_bytes = function(len, hex)
     return true
   end)
 end
+local decode_int
+decode_int = function(str, pos, len, endian)
+  if endian == nil then
+    endian = "big"
+  end
+  local out = 0
+  local _exp_0 = endian
+  if "big" == _exp_0 then
+    local offset = len - 1
+    local _list_0 = {
+      str:byte(pos, pos + len - 1)
+    }
+    for _index_0 = 1, #_list_0 do
+      local b = _list_0[_index_0]
+      out = out + (2 ^ (8 * offset) * b)
+      offset = offset - 1
+    end
+  elseif "little" == _exp_0 then
+    for idx, b in ipairs({
+      str:byte(pos, pos + len - 1)
+    }) do
+      out = out + (2 ^ (8 * (idx - 1)) * b)
+    end
+  else
+    error("unknown endian")
+  end
+  return out
+end
 local read_int
 read_int = function(len, endian)
   if endian == nil then
     endian = "big"
   end
   return P(len) / function(str)
-    local out = 0
-    local _exp_0 = endian
-    if "big" == _exp_0 then
-      local offset = len - 1
-      local _list_0 = {
-        str:byte(1, len)
-      }
-      for _index_0 = 1, #_list_0 do
-        local b = _list_0[_index_0]
-        out = out + (2 ^ (8 * offset) * b)
-        offset = offset - 1
-      end
-    elseif "little" == _exp_0 then
-      for idx, b in ipairs({
-        str:byte(1, len)
-      }) do
-        out = out + (2 ^ (8 * (idx - 1)) * b)
-      end
-    else
-      error("unknown endian")
-    end
-    return out
+    return decode_int(str, 1, len, endian)
   end
 end
 local PNG_IHDR = Ct(Cg(read_int(4), "width") * Cg(read_int(4), "height") * Cg(read_int(1), "bit_depth"))
@@ -103,9 +110,67 @@ local JPEG_SEGMENT = JPEG_MARKER * Cmt(Ct(Cg(read_int(1), "marker") * Cg(read_in
   end
   return out
 end)
+local parse_exif_orientation
+parse_exif_orientation = function(str, start, stop)
+  if not (start + 5 <= stop and str:sub(start, start + 5) == "Exif\0\0") then
+    return 
+  end
+  local tiff = start + 6
+  if not (tiff + 7 <= stop) then
+    return 
+  end
+  local endian
+  local _exp_0 = str:sub(tiff, tiff + 1)
+  if "II" == _exp_0 then
+    endian = "little"
+  elseif "MM" == _exp_0 then
+    endian = "big"
+  else
+    return 
+  end
+  if not (decode_int(str, tiff + 2, 2, endian) == 42) then
+    return 
+  end
+  local ifd = tiff + decode_int(str, tiff + 4, 4, endian)
+  if not (ifd + 1 <= stop) then
+    return 
+  end
+  for i = 0, decode_int(str, ifd, 2, endian) - 1 do
+    local entry = ifd + 2 + i * 12
+    if entry + 11 > stop then
+      return 
+    end
+    if decode_int(str, entry, 2, endian) == 0x0112 then
+      local orientation = decode_int(str, entry + 8, 2, endian)
+      if orientation < 1 or orientation > 8 then
+        return 
+      end
+      return orientation
+    end
+  end
+end
+local JPEG_EXIF_SEGMENT = JPEG_MARKER * bytes(225) * Cmt(read_int(2), function(subject, pos, length)
+  if length < 2 then
+    return false
+  end
+  local out = pos + length - 2
+  if out > #subject then
+    return false
+  end
+  return out, parse_exif_orientation(subject, pos, out - 1)
+end)
 local JPEG = JPEG_SOI * P({
-  JPEG_FRAME_SEGMENT + (JPEG_SEGMENT - JPEG_SOS - JPEG_EOI) * V(1)
-})
+  JPEG_FRAME_SEGMENT + JPEG_EXIF_SEGMENT * V(1) + (JPEG_SEGMENT - JPEG_SOS - JPEG_EOI) * V(1)
+}) / function(...)
+  local caps = {
+    ...
+  }
+  local frame = caps[#caps]
+  if #caps > 1 then
+    frame.orientation = caps[1]
+  end
+  return frame
+end
 local unpack_byte
 unpack_byte = function(index, char)
   assert(#index == 8, "index should be 8 chars long, assignment for each bit")

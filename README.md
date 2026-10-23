@@ -34,6 +34,11 @@ dimensions.
 On success, two values are returned: the type of the image (`png`, `jpeg`,
 `gif`), and a table containing at least a `width` and `height` field.
 
+For JPEGs with an EXIF orientation tag, the table also has an `orientation`
+field with a value from 1 to 8. `width` and `height` are always the stored
+dimensions, so for orientations 5 through 8 the image is displayed with them
+swapped.
+
 On error, `nil` and an error message is returned.
 
 ```lua
