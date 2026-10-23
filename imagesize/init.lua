@@ -260,6 +260,26 @@ local webp_vp8x_size = read_int(3, "little") / function(n)
 end
 local WEBP_VP8X = P("VP8X") * P(4) * P(4) * Ct(Cg(webp_vp8x_size, "width") * Cg(webp_vp8x_size, "height"))
 local WEBP = P("RIFF") * P(4) * P("WEBP") * (WEBP_VP8 + WEBP_VP8L + WEBP_VP8X)
+local bmp_header_size
+bmp_header_size = function(n)
+  return bytes(n, 0, 0, 0)
+end
+local BMP_CORE = bmp_header_size(12) * Ct(Cg(read_int(2, "little"), "width") * Cg(read_int(2, "little"), "height") * P(2) * Cg(read_int(2, "little"), "bit_depth"))
+local BMP_INFO_SIZES = bmp_header_size(16) + bmp_header_size(40) + bmp_header_size(52) + bmp_header_size(56) + bmp_header_size(64) + bmp_header_size(108) + bmp_header_size(124)
+local BMP_INFO = BMP_INFO_SIZES * Cmt(read_int(4, "little") * read_int(4, "little") * P(2) * read_int(2, "little"), function(subject, pos, width, height, bit_depth)
+  if width >= 2 ^ 31 then
+    return false
+  end
+  if height >= 2 ^ 31 then
+    height = 2 ^ 32 - height
+  end
+  return true, {
+    width = width,
+    height = height,
+    bit_depth = bit_depth
+  }
+end)
+local BMP = P("BM") * P(12) * (BMP_CORE + BMP_INFO)
 local detect_image_from_bytes
 detect_image_from_bytes = function(bytes)
   local out = PNG:match(bytes)
@@ -278,6 +298,10 @@ detect_image_from_bytes = function(bytes)
   if out then
     return "webp", out
   end
+  out = BMP:match(bytes)
+  if out then
+    return "bmp", out
+  end
   return nil, "failed to detect image"
 end
 return {
@@ -286,5 +310,6 @@ return {
   GIF = GIF,
   PNG = PNG,
   WEBP = WEBP,
+  BMP = BMP,
   version = "1.0.0"
 }

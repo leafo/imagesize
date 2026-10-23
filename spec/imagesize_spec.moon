@@ -537,3 +537,54 @@ describe "imagesize", ->
       it "fails on non-webp RIFF", ->
         import detect_image_from_bytes from require "imagesize"
         assert.same { nil, "failed to detect image" }, { detect_image_from_bytes "RIFF#{le 100, 4}WAVEfmt #{le 16, 4}" }
+
+  describe "bmp", ->
+    detect_file = (fname, len="*a") ->
+      import detect_image_from_bytes from require "imagesize"
+      f = assert io.open "spec/test_images/#{fname}"
+      bytes = assert f\read len
+      f\close!
+      { detect_image_from_bytes bytes }
+
+    it "detects OS/2 1.x bmp (BITMAPCOREHEADER)", ->
+      assert.same { "bmp", { width: 37, height: 21, bit_depth: 24 } }, detect_file "core.bmp"
+
+    it "detects BITMAPINFOHEADER bmp", ->
+      assert.same { "bmp", { width: 37, height: 21, bit_depth: 24 } }, detect_file "info.bmp"
+
+    it "detects palette bmp", ->
+      assert.same { "bmp", { width: 37, height: 21, bit_depth: 1 } }, detect_file "palette.bmp"
+
+    it "detects BITMAPV5HEADER bmp", ->
+      assert.same { "bmp", { width: 37, height: 21, bit_depth: 32 } }, detect_file "v5.bmp"
+
+    it "detects from partial bytes", ->
+      err = { nil, "failed to detect image" }
+
+      for {fname, needed} in *{{"core.bmp", 26}, {"info.bmp", 30}}
+        assert.same err, detect_file fname, needed - 1
+        assert.same "bmp", detect_file(fname, needed)[1]
+
+    describe "synthesized", ->
+      le = (num, len) ->
+        string.char unpack for i=0,len-1
+          math.floor(num / 256^i) % 256
+
+      info = (header_size, width, height) ->
+        "BM#{le 0, 12}#{le header_size, 4}#{le width, 4}#{le height, 4}#{le 1, 2}#{le 24, 2}"
+
+      it "reads top-down bmp with negative height", ->
+        import detect_image_from_bytes from require "imagesize"
+        assert.same { "bmp", { width: 640, height: 480, bit_depth: 24 } }, { detect_image_from_bytes info 40, 640, 2^32 - 480 }
+
+      it "reads OS/2 2.x header", ->
+        import detect_image_from_bytes from require "imagesize"
+        assert.same { "bmp", { width: 640, height: 480, bit_depth: 24 } }, { detect_image_from_bytes info 64, 640, 480 }
+
+      it "fails on negative width", ->
+        import detect_image_from_bytes from require "imagesize"
+        assert.same { nil, "failed to detect image" }, { detect_image_from_bytes info 40, 2^32 - 640, 480 }
+
+      it "fails on unknown header size", ->
+        import detect_image_from_bytes from require "imagesize"
+        assert.same { nil, "failed to detect image" }, { detect_image_from_bytes info 41, 640, 480 }

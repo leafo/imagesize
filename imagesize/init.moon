@@ -242,6 +242,24 @@ WEBP_VP8X = P("VP8X") * P(4) * P(4) * Ct Cg(webp_vp8x_size, "width") * Cg(webp_v
 
 WEBP = P("RIFF") * P(4) * P("WEBP") * (WEBP_VP8 + WEBP_VP8L + WEBP_VP8X)
 
+-- BMP: https://en.wikipedia.org/wiki/BMP_file_format
+-- the 14 byte file header is followed by a DIB header whose size identifies its version
+
+bmp_header_size = (n) -> bytes n, 0, 0, 0
+
+-- OS/2 1.x BITMAPCOREHEADER has unsigned 16 bit dimensions
+BMP_CORE = bmp_header_size(12) * Ct Cg(read_int(2, "little"), "width") * Cg(read_int(2, "little"), "height") * P(2) * Cg(read_int(2, "little"), "bit_depth")
+
+-- every later header (OS/2 2.x, BITMAPINFOHEADER through BITMAPV5HEADER) has
+-- signed 32 bit dimensions, where a negative height means rows are stored top-down
+BMP_INFO_SIZES = bmp_header_size(16) + bmp_header_size(40) + bmp_header_size(52) + bmp_header_size(56) + bmp_header_size(64) + bmp_header_size(108) + bmp_header_size(124)
+BMP_INFO = BMP_INFO_SIZES * Cmt read_int(4, "little") * read_int(4, "little") * P(2) * read_int(2, "little"), (subject, pos, width, height, bit_depth) ->
+  return false if width >= 2^31
+  height = 2^32 - height if height >= 2^31
+  true, { :width, :height, :bit_depth }
+
+BMP = P("BM") * P(12) * (BMP_CORE + BMP_INFO)
+
 detect_image_from_bytes = (bytes) ->
   out = PNG\match bytes
   if out
@@ -259,6 +277,10 @@ detect_image_from_bytes = (bytes) ->
   if out
     return "webp", out
 
+  out = BMP\match bytes
+  if out
+    return "bmp", out
+
   nil, "failed to detect image"
 
-{ :detect_image_from_bytes, :JPEG, :GIF, :PNG, :WEBP, version: "1.0.0" }
+{ :detect_image_from_bytes, :JPEG, :GIF, :PNG, :WEBP, :BMP, version: "1.0.0" }

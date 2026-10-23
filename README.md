@@ -12,6 +12,7 @@ Supported types:
 * JPEG &mdash; Typically needs around 160 for optimized images, upwards to around 1k or more with EXIF, etc.
 * GIF &mdash; Uses the logical screen size, or the first frame's size when it is larger or the file is GIF87a, matching browsers. Typically needs around 700+ bytes, depends on how palette is stored
 * WebP &mdash; Lossy, lossless, and extended (alpha, animation) files. Needs at most 30 bytes
+* BMP &mdash; Windows and OS/2 bitmaps, including top-down. Needs at most 30 bytes
 
 This library will only read the head of the string to identify the format and dimensions, then bail
 out. It will not verify that the file contains a valid image outside of that.
@@ -33,7 +34,7 @@ will attempt to read the front of the file up until where it can find the
 dimensions.
 
 On success, two values are returned: the type of the image (`png`, `jpeg`,
-`gif`, `webp`), and a table containing at least a `width` and `height` field.
+`gif`, `webp`, `bmp`), and a table containing at least a `width` and `height` field.
 
 For JPEGs with an EXIF orientation tag, the table also has an `orientation`
 field with a value from 1 to 8. `width` and `height` are always the stored
