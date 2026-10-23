@@ -345,3 +345,40 @@ describe "imagesize", ->
         }, {
           detect_image_from_bytes gif_bytes
         }
+
+      describe "extensions", ->
+        expected = {
+          "gif"
+          {
+            width: 95
+            height: 29
+          }
+        }
+
+        parse_with = (ext) ->
+          import detect_image_from_bytes from require "imagesize"
+          { detect_image_from_bytes "#{front}#{ext}#{image_descriptor 95, 29}" }
+
+        it "parses gif with empty comment", ->
+          assert.same expected, parse_with string.char 33, 254, 0
+
+        it "parses gif with multi block comment", ->
+          assert.same expected, parse_with "#{string.char 33, 254, 5}HELLO#{string.char 3}ABC#{string.char 0}"
+
+        it "parses gif with graphic control extension", ->
+          assert.same expected, parse_with string.char 33, 249, 4, 0, 0, 0, 0, 0
+
+        it "parses gif with NETSCAPE looping extension", ->
+          assert.same expected, parse_with "#{string.char 33, 255, 11}NETSCAPE2.0#{string.char 3, 1, 0, 0, 0}"
+
+        it "parses gif with XMP application extension", ->
+          assert.same expected, parse_with "#{string.char 33, 255, 11}XMP DataXMP#{string.char 5}<xmp>#{string.char 0}"
+
+        it "parses gif with plain text extension", ->
+          assert.same expected, parse_with "#{string.char 33, 1, 12}#{"."\rep 12}#{string.char 2}hi#{string.char 0}"
+
+        it "parses gif with unknown extension", ->
+          assert.same expected, parse_with "#{string.char 33, 99, 1}?#{string.char 0}"
+
+        it "fails on truncated sub-block", ->
+          assert.same {nil, "failed to detect image"}, parse_with "#{string.char 33, 254, 50}HELLO"

@@ -133,10 +133,10 @@ unpack_byte = function(index, char)
 end
 local GIF = P({
   P("GIF") * (P("87a") + P("89a")) * V("logical_screen_descriptor") * V("rest"),
-  rest = V("image_descriptor") + (V("graphic_extension") + V("comment_extension") + V("application_extension")) * V("rest"),
+  rest = V("image_descriptor") + V("extension") * V("rest"),
   image_descriptor = bytes(44) * P(2) * P(2) * Ct(Cg(read_int(2, "little"), "width") * Cg(read_int(2, "little"), "height")),
-  graphic_extension = bytes(33, 249) * P(6),
-  comment_extension = bytes(33, 254) * Cmt(read_int(1), function(subject, pos, length)
+  extension = bytes(33) * P(1) * V("sub_blocks"),
+  sub_blocks = Cmt(read_int(1), function(subject, pos, length)
     if length == 0 then
       return false
     end
@@ -145,8 +145,7 @@ local GIF = P({
       return false
     end
     return out
-  end) ^ 1 * bytes(0),
-  application_extension = bytes(33, 255) * P(17),
+  end) ^ 0 * bytes(0),
   logical_screen_descriptor = P(2) * P(2) * Cmt(C(P(1)) * P(2), function(subject, pos, byte)
     local global_color_table_flag, color_resolution, sort_flag, size_of_global_color_table
     do

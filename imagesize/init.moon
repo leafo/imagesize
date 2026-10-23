@@ -133,20 +133,22 @@ unpack_byte = (index, char) ->
 GIF = P {
   P("GIF") * (P("87a") + P("89a")) * V("logical_screen_descriptor") * V"rest"
 
-  rest: V"image_descriptor" + (V"graphic_extension" + V"comment_extension" + V"application_extension") * V"rest"
+  rest: V"image_descriptor" + V"extension" * V"rest"
 
   image_descriptor: bytes(44) * P(2) * P(2) * Ct Cg(read_int(2, "little"), "width") * Cg(read_int(2, "little"), "height")
 
-  graphic_extension: bytes(33, 249) * P(6)
-  comment_extension: bytes(33, 254) * Cmt(read_int(1), (subject, pos, length) ->
+  -- every extension (graphic control, comment, application, plain text, or
+  -- unknown) is a label byte followed by sub-blocks, so they can all be
+  -- skipped the same way
+  extension: bytes(33) * P(1) * V"sub_blocks"
+
+  -- each sub-block is a length byte then that many bytes, terminated by a 0 length
+  sub_blocks: Cmt(read_int(1), (subject, pos, length) ->
     return false if length == 0
     out = pos + length
     return false if out > #subject
     out
-  )^1 * bytes(0)
-
-  -- there is only one application extension, for looping gif
-  application_extension: bytes(33, 255) * P(17)
+  )^0 * bytes(0)
 
   -- two two-byte sizes (not used) then packed byte describing global color table, then 2 more remaining bytes
   logical_screen_descriptor:  P(2) * P(2) * Cmt C(P(1)) * P(2), (subject, pos, byte) ->
