@@ -7,18 +7,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        luaVersion: ["5.1", "luajit", "5.2", "5.3", "5.4"]
+        luaVersion: ["5.1", "5.2", "5.3", "5.4", "5.5", "luajit", "luajit-openresty"]
 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@master
+    - uses: actions/checkout@v7
 
-    - uses: leafo/gh-actions-lua@master
+    - uses: leafo/gh-actions-lua@v13
       with:
         luaVersion: ${{ matrix.luaVersion }}
 
-    - uses: leafo/gh-actions-luarocks@master
+    - uses: leafo/gh-actions-luarocks@v6
 
     - name: build
       run: |
@@ -29,4 +29,3 @@ jobs:
     - name: test
       run: |
         busted -o utfTerminal
-
