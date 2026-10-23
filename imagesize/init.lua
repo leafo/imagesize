@@ -87,6 +87,9 @@ local JPEG_SOS = bytes(255, 218)
 local JPEG_FRAME = Ct(Cg(read_int(1), "bit_depth") * Cg(read_int(2), "height") * Cg(read_int(2), "width"))
 local JPEG_FRAME_SEGMENT = bytes(255) * (bytes(192) + bytes(193) + bytes(194)) * P(2) * JPEG_FRAME
 local JPEG_SEGMENT = bytes(255) * Cmt(Ct(Cg(read_int(1), "marker") * Cg(read_int(2), "length")), function(subject, pos, cap)
+  if cap.length < 2 then
+    return false
+  end
   local real_length = cap.length - 2
   local out = pos + real_length
   if out > #subject then

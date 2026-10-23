@@ -167,6 +167,13 @@ describe "imagesize", ->
 
       assert.same expected, results
 
+    it "fails on segment length shorter than the length field", ->
+      import detect_image_from_bytes from require "imagesize"
+
+      for len in *{0, 1}
+        bytes = string.char 0xFF, 0xD8, 0xFF, 0xE0, 0, len
+        assert.same {nil, "failed to detect image"}, { detect_image_from_bytes bytes }
+
   describe "gif", ->
     it "detects global color table", ->
       import detect_image_from_bytes from require "imagesize"

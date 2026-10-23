@@ -76,6 +76,8 @@ JPEG_FRAME_SEGMENT = bytes(255) * (bytes(192) + bytes(193) + bytes(194)) * P(2) 
 JPEG_SEGMENT = bytes(255) * Cmt Ct(Cg(read_int(1), "marker") * Cg(read_int(2), "length")), (subject, pos, cap) ->
   -- advance past the dylanmic length of the segment
   -- the length here includes the two bytes for the length field
+  -- LPeg raises an error if the returned position moves backwards
+  return false if cap.length < 2
   real_length = cap.length - 2
   out = pos + real_length
 
