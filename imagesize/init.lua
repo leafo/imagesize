@@ -196,8 +196,24 @@ unpack_byte = function(index, char)
   end
   return out
 end
+local gif_size
+gif_size = function(version, screen_width, screen_height, frame)
+  if frame.width == 0 or frame.height == 0 then
+    return {
+      width = screen_width,
+      height = screen_height
+    }
+  end
+  if version == "87a" or frame.width > screen_width or frame.height > screen_height then
+    return frame
+  end
+  return {
+    width = screen_width,
+    height = screen_height
+  }
+end
 local GIF = P({
-  P("GIF") * (P("87a") + P("89a")) * V("logical_screen_descriptor") * V("rest"),
+  P("GIF") * C(P("87a") + P("89a")) * V("logical_screen_descriptor") * V("rest"),
   rest = V("image_descriptor") + V("extension") * V("rest"),
   image_descriptor = bytes(44) * P(2) * P(2) * Ct(Cg(read_int(2, "little"), "width") * Cg(read_int(2, "little"), "height")),
   extension = bytes(33) * P(1) * V("sub_blocks"),
@@ -211,7 +227,7 @@ local GIF = P({
     end
     return out
   end) ^ 0 * bytes(0),
-  logical_screen_descriptor = P(2) * P(2) * Cmt(C(P(1)) * P(2), function(subject, pos, byte)
+  logical_screen_descriptor = read_int(2, "little") * read_int(2, "little") * Cmt(C(P(1)) * P(2), function(subject, pos, byte)
     local global_color_table_flag, color_resolution, sort_flag, size_of_global_color_table
     do
       local _obj_0 = unpack_byte("abbbcddd", byte)
@@ -228,7 +244,7 @@ local GIF = P({
       return true
     end
   end)
-})
+}) / gif_size
 local webp_vp8_size = read_int(2, "little") / function(n)
   return n % 2 ^ 14
 end

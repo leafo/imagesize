@@ -171,10 +171,20 @@ unpack_byte = (index, char) ->
 
   out
 
--- this looks for the first image descriptor and uses that size
--- the logical screen size tends to not represent anything and is ignored
-GIF = P {
-  P("GIF") * (P("87a") + P("89a")) * V("logical_screen_descriptor") * V"rest"
+-- Matches how Firefox and Chromium size a GIF: use the logical screen, unless
+-- the first frame is larger than it or the file is GIF87a, since some files
+-- have a bogus logical screen size
+gif_size = (version, screen_width, screen_height, frame) ->
+  if frame.width == 0 or frame.height == 0
+    return { width: screen_width, height: screen_height }
+
+  if version == "87a" or frame.width > screen_width or frame.height > screen_height
+    return frame
+
+  { width: screen_width, height: screen_height }
+
+GIF = P({
+  P("GIF") * C(P("87a") + P("89a")) * V("logical_screen_descriptor") * V"rest"
 
   rest: V"image_descriptor" + V"extension" * V"rest"
 
@@ -193,8 +203,8 @@ GIF = P {
     out
   )^0 * bytes(0)
 
-  -- two two-byte sizes (not used) then packed byte describing global color table, then 2 more remaining bytes
-  logical_screen_descriptor:  P(2) * P(2) * Cmt C(P(1)) * P(2), (subject, pos, byte) ->
+  -- two two-byte sizes then packed byte describing global color table, then 2 more remaining bytes
+  logical_screen_descriptor: read_int(2, "little") * read_int(2, "little") * Cmt C(P(1)) * P(2), (subject, pos, byte) ->
     {
       a: global_color_table_flag
       b: color_resolution
@@ -210,7 +220,7 @@ GIF = P {
       out
     else
       true
-}
+}) / gif_size
 
 -- WebP: https://developers.google.com/speed/webp/docs/riff_container
 -- the first chunk determines how the size is stored

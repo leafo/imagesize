@@ -10,7 +10,7 @@ Supported types:
 
 * PNG &mdash; Typically needs at least 25 bytes
 * JPEG &mdash; Typically needs around 160 for optimized images, upwards to around 1k or more with EXIF, etc.
-* GIF &mdash; Reads with/height from first image descriptor. Typically needs around 700+ bytes, depends on how palette is stored
+* GIF &mdash; Uses the logical screen size, or the first frame's size when it is larger or the file is GIF87a, matching browsers. Typically needs around 700+ bytes, depends on how palette is stored
 * WebP &mdash; Lossy, lossless, and extended (alpha, animation) files. Needs at most 30 bytes
 
 This library will only read the head of the string to identify the format and dimensions, then bail

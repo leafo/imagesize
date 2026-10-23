@@ -343,7 +343,8 @@ describe "imagesize", ->
 
     describe "synthesized", ->
       --- with no global color table
-      front = "GIF89aXXXX#{string.char 0}XX"
+      -- 0x0 logical screen, so the first frame size is used
+      front = "GIF89a#{string.char 0, 0, 0, 0, 0}XX"
 
       to2bytes = (num) ->
         b1 = num % 256
@@ -389,7 +390,7 @@ describe "imagesize", ->
         len = 3
 
         packed_byte = string.char 2^7 + len
-        screen_descriptor = "XXXX#{packed_byte}XX#{"."\rep 3*2^(len+1)}"
+        screen_descriptor = "#{string.char 0, 0, 0, 0}#{packed_byte}XX#{"."\rep 3*2^(len+1)}"
         gif_bytes = "GIF89a#{screen_descriptor}#{image_descriptor 44, 77}"
 
         assert.same {
@@ -419,6 +420,27 @@ describe "imagesize", ->
         }, {
           detect_image_from_bytes gif_bytes
         }
+
+      describe "logical screen", ->
+        parse_with = (version, screen_width, screen_height, width, height) ->
+          import detect_image_from_bytes from require "imagesize"
+          screen = "#{to2bytes screen_width}#{to2bytes screen_height}#{string.char 0}XX"
+          { detect_image_from_bytes "GIF#{version}#{screen}#{image_descriptor width, height}" }
+
+        it "uses screen size when larger than first frame", ->
+          assert.same { "gif", { width: 300, height: 200 } }, parse_with "89a", 300, 200, 50, 40
+
+        it "uses frame size when wider than screen", ->
+          assert.same { "gif", { width: 400, height: 40 } }, parse_with "89a", 300, 200, 400, 40
+
+        it "uses frame size when taller than screen", ->
+          assert.same { "gif", { width: 50, height: 250 } }, parse_with "89a", 300, 200, 50, 250
+
+        it "uses frame size for GIF87a", ->
+          assert.same { "gif", { width: 50, height: 40 } }, parse_with "87a", 300, 200, 50, 40
+
+        it "uses screen size when frame is empty", ->
+          assert.same { "gif", { width: 300, height: 200 } }, parse_with "89a", 300, 200, 0, 40
 
       describe "extensions", ->
         expected = {
