@@ -1,7 +1,8 @@
 
-import C, Ct, Cg, P, Cmt, V from require "lpeg"
+import C, Ct, Cg, P, R, Cmt, V from require "lpeg"
 
 bytes = (...) -> P string.char ...
+byte_range = (a, b) -> R string.char a, b
 
 read_chars = (len) -> P len
 
@@ -62,18 +63,22 @@ PNG = bytes(137, 80, 78, 71, 13, 10, 26, 10) * P {
 
 -- JPG: https://en.wikipedia.org/wiki/JPEG#JPEG_files
 
+-- any number of 0xFF fill bytes may precede a marker
+JPEG_MARKER = bytes(255)^1
+
 -- segments that do not have a 2 bytes length
 JPEG_SOI = bytes 255, 216
-JPEG_EOI = bytes 255, 217
-JPEG_SOS = bytes 255, 218 -- the length of this goes to end of file
+JPEG_EOI = JPEG_MARKER * bytes 217
+JPEG_SOS = JPEG_MARKER * bytes 218 -- the length of this goes to end of file
 
 -- this only parses the front of the frame data, more stuff follows but we don't care
 JPEG_FRAME = Ct Cg(read_int(1), "bit_depth") * Cg(read_int(2), "height") * Cg(read_int(2), "width")
--- SOF0, SOF1, SOF2
-JPEG_FRAME_SEGMENT = bytes(255) * (bytes(192) + bytes(193) + bytes(194)) * P(2) * JPEG_FRAME
+-- SOF0-SOF15, the gaps are DHT (C4), JPG (C8), and DAC (CC)
+JPEG_SOF = byte_range(192, 195) + byte_range(197, 199) + byte_range(201, 203) + byte_range(205, 207)
+JPEG_FRAME_SEGMENT = JPEG_MARKER * JPEG_SOF * P(2) * JPEG_FRAME
 
 -- this reads over a segment and does nothing, we use the frame segment grammar above to parse the data from the frame
-JPEG_SEGMENT = bytes(255) * Cmt Ct(Cg(read_int(1), "marker") * Cg(read_int(2), "length")), (subject, pos, cap) ->
+JPEG_SEGMENT = JPEG_MARKER * Cmt Ct(Cg(read_int(1), "marker") * Cg(read_int(2), "length")), (subject, pos, cap) ->
   -- advance past the dylanmic length of the segment
   -- the length here includes the two bytes for the length field
   -- LPeg raises an error if the returned position moves backwards

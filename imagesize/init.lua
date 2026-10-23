@@ -1,11 +1,15 @@
-local C, Ct, Cg, P, Cmt, V
+local C, Ct, Cg, P, R, Cmt, V
 do
   local _obj_0 = require("lpeg")
-  C, Ct, Cg, P, Cmt, V = _obj_0.C, _obj_0.Ct, _obj_0.Cg, _obj_0.P, _obj_0.Cmt, _obj_0.V
+  C, Ct, Cg, P, R, Cmt, V = _obj_0.C, _obj_0.Ct, _obj_0.Cg, _obj_0.P, _obj_0.R, _obj_0.Cmt, _obj_0.V
 end
 local bytes
 bytes = function(...)
   return P(string.char(...))
+end
+local byte_range
+byte_range = function(a, b)
+  return R(string.char(a, b))
 end
 local read_chars
 read_chars = function(len)
@@ -81,12 +85,14 @@ end)
 local PNG = bytes(137, 80, 78, 71, 13, 10, 26, 10) * P({
   PNG_IHDR_CHUNK + PNG_CHUNK * V(1)
 })
+local JPEG_MARKER = bytes(255) ^ 1
 local JPEG_SOI = bytes(255, 216)
-local JPEG_EOI = bytes(255, 217)
-local JPEG_SOS = bytes(255, 218)
+local JPEG_EOI = JPEG_MARKER * bytes(217)
+local JPEG_SOS = JPEG_MARKER * bytes(218)
 local JPEG_FRAME = Ct(Cg(read_int(1), "bit_depth") * Cg(read_int(2), "height") * Cg(read_int(2), "width"))
-local JPEG_FRAME_SEGMENT = bytes(255) * (bytes(192) + bytes(193) + bytes(194)) * P(2) * JPEG_FRAME
-local JPEG_SEGMENT = bytes(255) * Cmt(Ct(Cg(read_int(1), "marker") * Cg(read_int(2), "length")), function(subject, pos, cap)
+local JPEG_SOF = byte_range(192, 195) + byte_range(197, 199) + byte_range(201, 203) + byte_range(205, 207)
+local JPEG_FRAME_SEGMENT = JPEG_MARKER * JPEG_SOF * P(2) * JPEG_FRAME
+local JPEG_SEGMENT = JPEG_MARKER * Cmt(Ct(Cg(read_int(1), "marker") * Cg(read_int(2), "length")), function(subject, pos, cap)
   if cap.length < 2 then
     return false
   end

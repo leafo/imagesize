@@ -174,6 +174,47 @@ describe "imagesize", ->
         bytes = string.char 0xFF, 0xD8, 0xFF, 0xE0, 0, len
         assert.same {nil, "failed to detect image"}, { detect_image_from_bytes bytes }
 
+    describe "synthesized", ->
+      soi = string.char 0xFF, 0xD8
+      app0 = string.char(0xFF, 0xE0, 0, 4) .. "XX"
+
+      -- 8 bit depth, 77 high, 44 wide, single component
+      frame = (marker) ->
+        string.char 0xFF, marker, 0, 11, 8, 0, 77, 0, 44, 1, 1, 0x11, 0
+
+      expected = {
+        "jpeg"
+        {
+          width: 44
+          height: 77
+          bit_depth: 8
+        }
+      }
+
+      it "parses every SOF marker", ->
+        import detect_image_from_bytes from require "imagesize"
+
+        for marker in *{0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+          assert.same expected, { detect_image_from_bytes "#{soi}#{app0}#{frame marker}" }
+
+      it "does not treat DHT, JPG, or DAC as a frame", ->
+        import detect_image_from_bytes from require "imagesize"
+
+        for marker in *{0xC4, 0xC8, 0xCC}
+          assert.same expected, { detect_image_from_bytes "#{soi}#{frame marker}#{frame 0xC0}" }
+
+      it "skips fill bytes before markers", ->
+        import detect_image_from_bytes from require "imagesize"
+
+        fill = string.char(0xFF)\rep 3
+        assert.same expected, { detect_image_from_bytes "#{soi}#{fill}#{app0}#{fill}#{frame 0xC0}" }
+
+      it "stops at SOS preceded by fill bytes", ->
+        import detect_image_from_bytes from require "imagesize"
+
+        sos = string.char 0xFF, 0xFF, 0xDA, 0, 2
+        assert.same {nil, "failed to detect image"}, { detect_image_from_bytes "#{soi}#{sos}#{frame 0xC0}" }
+
   describe "gif", ->
     it "detects global color table", ->
       import detect_image_from_bytes from require "imagesize"
