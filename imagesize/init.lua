@@ -48,26 +48,18 @@ decode_int = function(str, pos, len, endian)
   if endian == nil then
     endian = "big"
   end
-  local out = 0
+  local first, last, step
   local _exp_0 = endian
   if "big" == _exp_0 then
-    local offset = len - 1
-    local _list_0 = {
-      str:byte(pos, pos + len - 1)
-    }
-    for _index_0 = 1, #_list_0 do
-      local b = _list_0[_index_0]
-      out = out + (2 ^ (8 * offset) * b)
-      offset = offset - 1
-    end
+    first, last, step = pos, pos + len - 1, 1
   elseif "little" == _exp_0 then
-    for idx, b in ipairs({
-      str:byte(pos, pos + len - 1)
-    }) do
-      out = out + (2 ^ (8 * (idx - 1)) * b)
-    end
+    first, last, step = pos + len - 1, pos, -1
   else
-    error("unknown endian")
+    first, last, step = error("unknown endian")
+  end
+  local out = 0
+  for i = first, last, step do
+    out = out * 256 + str:byte(i)
   end
   return out
 end
@@ -246,13 +238,13 @@ local GIF = P({
   end)
 }) / gif_size
 local webp_vp8_size = read_int(2, "little") / function(n)
-  return n % 2 ^ 14
+  return n % 0x4000
 end
 local WEBP_VP8 = P("VP8 ") * P(4) * P(3) * bytes(157, 1, 42) * Ct(Cg(webp_vp8_size, "width") * Cg(webp_vp8_size, "height"))
 local WEBP_VP8L = P("VP8L") * P(4) * bytes(47) * read_int(4, "little") / function(n)
   return {
-    width = n % 2 ^ 14 + 1,
-    height = math.floor(n / 2 ^ 14) % 2 ^ 14 + 1
+    width = n % 0x4000 + 1,
+    height = math.floor(n / 0x4000) % 0x4000 + 1
   }
 end
 local webp_vp8x_size = read_int(3, "little") / function(n)
@@ -267,11 +259,11 @@ end
 local BMP_CORE = bmp_header_size(12) * Ct(Cg(read_int(2, "little"), "width") * Cg(read_int(2, "little"), "height") * P(2) * Cg(read_int(2, "little"), "bit_depth"))
 local BMP_INFO_SIZES = bmp_header_size(16) + bmp_header_size(40) + bmp_header_size(52) + bmp_header_size(56) + bmp_header_size(64) + bmp_header_size(108) + bmp_header_size(124)
 local BMP_INFO = BMP_INFO_SIZES * Cmt(read_int(4, "little") * read_int(4, "little") * P(2) * read_int(2, "little"), function(subject, pos, width, height, bit_depth)
-  if width >= 2 ^ 31 then
+  if width >= 0x80000000 then
     return false
   end
-  if height >= 2 ^ 31 then
-    height = 2 ^ 32 - height
+  if height >= 0x80000000 then
+    height = 0x100000000 - height
   end
   return true, {
     width = width,

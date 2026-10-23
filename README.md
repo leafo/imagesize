@@ -53,7 +53,7 @@ local bytes = file.open("some_image.png"):read(200)
 local kind, dimensions = imagesize.detect_image_from_bytes(bytes)
 
 -- kind --> png
--- dimensions --> { width = 25, height = 100, depth = 8 }
+-- dimensions --> { width = 25, height = 100, bit_depth = 8 }
 ```
 
 

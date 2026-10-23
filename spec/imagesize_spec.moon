@@ -2,6 +2,19 @@ unpack = table.unpack or unpack
 
 
 describe "imagesize", ->
+  -- assert.same treats 50 and 50.0 as equal, so check the type directly
+  it "returns integers on Lua 5.3+", ->
+    return unless math.type
+    import detect_image_from_bytes from require "imagesize"
+
+    for fname in *{"image.png", "baseline.jpg", "global.gif", "lossless.webp", "info.bmp"}
+      f = assert io.open "spec/test_images/#{fname}"
+      _, data = detect_image_from_bytes assert f\read "*a"
+      f\close!
+
+      for k, v in pairs data
+        assert.same "integer", math.type(v), "#{fname} #{k}"
+
   describe "png", ->
     it "detects png size", ->
       import detect_image_from_bytes from require "imagesize"

@@ -16,22 +16,20 @@ preview_bytes = (len=10, hex=true) ->
     print table.concat bs, " "
     true
 
--- decode len bytes of str starting at pos to a Lua number
+-- decode len bytes of str starting at pos to a Lua number. Only * and + are
+-- used so the result stays an integer on Lua 5.3+, where 2^n is a float
 decode_int = (str, pos, len, endian="big") ->
-  out = 0
-
-  switch endian
+  first, last, step = switch endian
     when "big"
-      offset = len - 1
-      for b in *{ str\byte pos, pos + len - 1 }
-        out += 2^(8 * offset) * b
-        offset -= 1
-
+      pos, pos + len - 1, 1
     when "little"
-      for idx, b in ipairs { str\byte pos, pos + len - 1 }
-        out += 2^(8 * (idx-1)) * b
+      pos + len - 1, pos, -1
     else
       error "unknown endian"
+
+  out = 0
+  for i=first, last, step
+    out = out * 256 + str\byte i
 
   out
 
@@ -226,14 +224,14 @@ GIF = P({
 -- the first chunk determines how the size is stored
 
 -- lossy: 3 byte frame tag, start code, then 14 bit dimensions with 2 bit scale
-webp_vp8_size = read_int(2, "little") / (n) -> n % 2^14
+webp_vp8_size = read_int(2, "little") / (n) -> n % 0x4000
 WEBP_VP8 = P("VP8 ") * P(4) * P(3) * bytes(157, 1, 42) * Ct Cg(webp_vp8_size, "width") * Cg(webp_vp8_size, "height")
 
 -- lossless: signature byte, then 14 bits each of width - 1 and height - 1
 WEBP_VP8L = P("VP8L") * P(4) * bytes(47) * read_int(4, "little") / (n) ->
   {
-    width: n % 2^14 + 1
-    height: math.floor(n / 2^14) % 2^14 + 1
+    width: n % 0x4000 + 1
+    height: math.floor(n / 0x4000) % 0x4000 + 1
   }
 
 -- extended (alpha, animation, metadata): flags and reserved bytes, then 24 bit canvas width - 1 and height - 1
@@ -254,8 +252,8 @@ BMP_CORE = bmp_header_size(12) * Ct Cg(read_int(2, "little"), "width") * Cg(read
 -- signed 32 bit dimensions, where a negative height means rows are stored top-down
 BMP_INFO_SIZES = bmp_header_size(16) + bmp_header_size(40) + bmp_header_size(52) + bmp_header_size(56) + bmp_header_size(64) + bmp_header_size(108) + bmp_header_size(124)
 BMP_INFO = BMP_INFO_SIZES * Cmt read_int(4, "little") * read_int(4, "little") * P(2) * read_int(2, "little"), (subject, pos, width, height, bit_depth) ->
-  return false if width >= 2^31
-  height = 2^32 - height if height >= 2^31
+  return false if width >= 0x80000000
+  height = 0x100000000 - height if height >= 0x80000000
   true, { :width, :height, :bit_depth }
 
 BMP = P("BM") * P(12) * (BMP_CORE + BMP_INFO)
