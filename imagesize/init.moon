@@ -121,20 +121,30 @@ parse_exif_orientation = (str, start, stop) ->
       return if orientation < 1 or orientation > 8
       return orientation
 
-JPEG_EXIF_SEGMENT = JPEG_MARKER * bytes(225) * Cmt read_int(2), (subject, pos, length) ->
+-- only matches an APP1 segment that has an orientation, any other APP1 is
+-- skipped as a regular segment
+JPEG_EXIF_ORIENTATION = JPEG_MARKER * bytes(225) * Cmt read_int(2), (subject, pos, length) ->
   return false if length < 2
   out = pos + length - 2
   return false if out > #subject
-  out, parse_exif_orientation subject, pos, out - 1
+  orientation = parse_exif_orientation subject, pos, out - 1
+  return false unless orientation
+  out, orientation
 
--- try to read segments until we get a frame segments. The first orientation
--- found in an APP1 segment is merged into the frame
+JPEG_SKIP_SEGMENT = JPEG_SEGMENT - JPEG_SOS - JPEG_EOI
+
+-- try to read segments until we get a frame segment. The first orientation
+-- found moves to a rule that no longer looks for one, so at most one is
+-- captured. Recursion must stay in the last alternative of each rule, since
+-- LPeg keeps a backtrack entry for every earlier alternative that recurses
+-- and errors once 400 are pending
 JPEG = JPEG_SOI * P({
-  JPEG_FRAME_SEGMENT + JPEG_EXIF_SEGMENT * V(1) + (JPEG_SEGMENT - JPEG_SOS - JPEG_EOI) * V(1)
-}) / (...) ->
-  caps = {...}
-  frame = caps[#caps]
-  frame.orientation = caps[1] if #caps > 1
+  "segments"
+  segments: JPEG_FRAME_SEGMENT + JPEG_EXIF_ORIENTATION * V"after_orientation" + JPEG_SKIP_SEGMENT * V"segments"
+  after_orientation: JPEG_FRAME_SEGMENT + JPEG_SKIP_SEGMENT * V"after_orientation"
+}) / (orientation, frame) ->
+  return orientation unless frame
+  frame.orientation = orientation
   frame
 
 -- GIF: https://en.wikipedia.org/wiki/GIF#File_format

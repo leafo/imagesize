@@ -141,7 +141,7 @@ parse_exif_orientation = function(str, start, stop)
     end
   end
 end
-local JPEG_EXIF_SEGMENT = JPEG_MARKER * bytes(225) * Cmt(read_int(2), function(subject, pos, length)
+local JPEG_EXIF_ORIENTATION = JPEG_MARKER * bytes(225) * Cmt(read_int(2), function(subject, pos, length)
   if length < 2 then
     return false
   end
@@ -149,18 +149,22 @@ local JPEG_EXIF_SEGMENT = JPEG_MARKER * bytes(225) * Cmt(read_int(2), function(s
   if out > #subject then
     return false
   end
-  return out, parse_exif_orientation(subject, pos, out - 1)
-end)
-local JPEG = JPEG_SOI * P({
-  JPEG_FRAME_SEGMENT + JPEG_EXIF_SEGMENT * V(1) + (JPEG_SEGMENT - JPEG_SOS - JPEG_EOI) * V(1)
-}) / function(...)
-  local caps = {
-    ...
-  }
-  local frame = caps[#caps]
-  if #caps > 1 then
-    frame.orientation = caps[1]
+  local orientation = parse_exif_orientation(subject, pos, out - 1)
+  if not (orientation) then
+    return false
   end
+  return out, orientation
+end)
+local JPEG_SKIP_SEGMENT = JPEG_SEGMENT - JPEG_SOS - JPEG_EOI
+local JPEG = JPEG_SOI * P({
+  "segments",
+  segments = JPEG_FRAME_SEGMENT + JPEG_EXIF_ORIENTATION * V("after_orientation") + JPEG_SKIP_SEGMENT * V("segments"),
+  after_orientation = JPEG_FRAME_SEGMENT + JPEG_SKIP_SEGMENT * V("after_orientation")
+}) / function(orientation, frame)
+  if not (frame) then
+    return orientation
+  end
+  frame.orientation = orientation
   return frame
 end
 local gif_size

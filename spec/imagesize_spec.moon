@@ -15,6 +15,39 @@ describe "imagesize", ->
       for k, v in pairs data
         assert.same "integer", math.type(v), "#{fname} #{k}"
 
+  -- LPeg errors once 400 backtrack entries are pending, so a grammar that
+  -- recurses through anything but the last alternative fails on these
+  describe "many segments", ->
+    count = 1000
+    jpeg_frame = string.char 0xFF, 0xC0, 0, 11, 8, 0, 77, 0, 44, 1, 1, 0x11, 0
+
+    it "skips many jpeg APP1 segments", ->
+      import detect_image_from_bytes from require "imagesize"
+      app1 = string.char 0xFF, 0xE1, 0, 2
+      bytes = "#{string.char 0xFF, 0xD8}#{app1\rep count}#{jpeg_frame}"
+      assert.same { "jpeg", { width: 44, height: 77, bit_depth: 8 } }, { detect_image_from_bytes bytes }
+
+    it "skips many jpeg exif segments", ->
+      import detect_image_from_bytes from require "imagesize"
+      exif_data = "Exif\0\0MM#{string.char 0, 42, 0, 0, 0, 8, 0, 1, 1, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0}"
+      exif = "#{string.char 0xFF, 0xE1, 0, #exif_data + 2}#{exif_data}"
+      bytes = "#{string.char 0xFF, 0xD8}#{exif\rep count}#{jpeg_frame}"
+      assert.same { "jpeg", { width: 44, height: 77, bit_depth: 8, orientation: 6 } }, { detect_image_from_bytes bytes }
+
+    it "skips many png chunks", ->
+      import detect_image_from_bytes from require "imagesize"
+      chunk = "#{string.char 0, 0, 0, 0}teXtCRC!"
+      ihdr = "#{string.char 0, 0, 0, 13}IHDR#{string.char 0, 0, 0, 3, 0, 0, 0, 5, 8}"
+      bytes = "#{string.char 137, 80, 78, 71, 13, 10, 26, 10}#{chunk\rep count}#{ihdr}"
+      assert.same { "png", { width: 3, height: 5, bit_depth: 8 } }, { detect_image_from_bytes bytes }
+
+    it "skips many gif extensions", ->
+      import detect_image_from_bytes from require "imagesize"
+      comment = string.char 33, 254, 1, 65, 0
+      image = string.char 44, 0, 0, 0, 0, 3, 0, 5, 0, 0
+      bytes = "GIF89a#{string.char 0, 0, 0, 0, 0, 0, 0}#{comment\rep count}#{image}"
+      assert.same { "gif", { width: 3, height: 5 } }, { detect_image_from_bytes bytes }
+
   describe "png", ->
     it "detects png size", ->
       import detect_image_from_bytes from require "imagesize"
