@@ -80,7 +80,7 @@ JPEG_FRAME_SEGMENT = JPEG_MARKER * JPEG_SOF * P(2) * JPEG_FRAME
 
 -- this reads over a segment and does nothing, we use the frame segment grammar above to parse the data from the frame
 JPEG_SEGMENT = JPEG_MARKER * Cmt Ct(Cg(read_int(1), "marker") * Cg(read_int(2), "length")), (subject, pos, cap) ->
-  -- advance past the dylanmic length of the segment
+  -- advance past the dynamic length of the segment
   -- the length here includes the two bytes for the length field
   -- LPeg raises an error if the returned position moves backwards
   return false if cap.length < 2
@@ -142,33 +142,6 @@ JPEG = JPEG_SOI * P({
 -- http://giflib.sourceforge.net/whatsinagif/bits_and_bytes.html
 -- gif uses little endian
 
--- unpacks each bit into var with the single character name at the index of the bit
--- eg. unpack_byte("aaaabbbb", string.char(100))  -> { a = 6 [left 4 bits], b = 4 [right 4 bits]}
-unpack_byte = (index, char) ->
-  assert #index == 8, "index should be 8 chars long, assignment for each bit"
-
-  num = string.byte char
-  out = { }
-  counts = { }
-
-  for i=8,1,-1
-    k = index\sub i,i
-
-    bit = if num % 2 == 1
-      1
-    else
-      0
-
-    out[k] or= 0
-    counts[k] or= 0
-    out[k] = out[k] + bit * 2 ^ counts[k]
-    counts[k] += 1
-
-    -- remove odd bit, shift right by 1
-    num = (num - bit) / 2
-
-  out
-
 -- Matches how Firefox and Chromium size a GIF: use the logical screen, unless
 -- the first frame is larger than it or the file is GIF87a, since some files
 -- have a bogus logical screen size
@@ -202,22 +175,13 @@ GIF = P({
   )^0 * bytes(0)
 
   -- two two-byte sizes then packed byte describing global color table, then 2 more remaining bytes
-  logical_screen_descriptor: read_int(2, "little") * read_int(2, "little") * Cmt C(P(1)) * P(2), (subject, pos, byte) ->
-    {
-      a: global_color_table_flag
-      b: color_resolution
-      c: sort_flag
-      d: size_of_global_color_table
-    } = unpack_byte "abbbcddd", byte
-
-    if global_color_table_flag == 1
-      -- consome the global color table
-      global_color_table_size = 3 * 2^(size_of_global_color_table+1)
-      out = pos + global_color_table_size
-      return false if out > #subject
-      out
-    else
-      true
+  logical_screen_descriptor: read_int(2, "little") * read_int(2, "little") * Cmt read_int(1) * P(2), (subject, pos, packed) ->
+    -- the high bit flags a global color table, the low 3 bits give its size
+    -- as 2^(N+1) colors of 3 bytes each
+    return true if packed < 128
+    out = pos + 3 * 2^(packed % 8 + 1)
+    return false if out > #subject
+    out
 }) / gif_size
 
 -- WebP: https://developers.google.com/speed/webp/docs/riff_container

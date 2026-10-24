@@ -163,31 +163,6 @@ local JPEG = JPEG_SOI * P({
   end
   return frame
 end
-local unpack_byte
-unpack_byte = function(index, char)
-  assert(#index == 8, "index should be 8 chars long, assignment for each bit")
-  local num = string.byte(char)
-  local out = { }
-  local counts = { }
-  for i = 8, 1, -1 do
-    local k = index:sub(i, i)
-    local bit
-    if num % 2 == 1 then
-      bit = 1
-    else
-      bit = 0
-    end
-    local _update_0 = k
-    out[_update_0] = out[_update_0] or 0
-    local _update_1 = k
-    counts[_update_1] = counts[_update_1] or 0
-    out[k] = out[k] + bit * 2 ^ counts[k]
-    local _update_2 = k
-    counts[_update_2] = counts[_update_2] + 1
-    num = (num - bit) / 2
-  end
-  return out
-end
 local gif_size
 gif_size = function(version, screen_width, screen_height, frame)
   if frame.width == 0 or frame.height == 0 then
@@ -219,22 +194,15 @@ local GIF = P({
     end
     return out
   end) ^ 0 * bytes(0),
-  logical_screen_descriptor = read_int(2, "little") * read_int(2, "little") * Cmt(C(P(1)) * P(2), function(subject, pos, byte)
-    local global_color_table_flag, color_resolution, sort_flag, size_of_global_color_table
-    do
-      local _obj_0 = unpack_byte("abbbcddd", byte)
-      global_color_table_flag, color_resolution, sort_flag, size_of_global_color_table = _obj_0.a, _obj_0.b, _obj_0.c, _obj_0.d
-    end
-    if global_color_table_flag == 1 then
-      local global_color_table_size = 3 * 2 ^ (size_of_global_color_table + 1)
-      local out = pos + global_color_table_size
-      if out > #subject then
-        return false
-      end
-      return out
-    else
+  logical_screen_descriptor = read_int(2, "little") * read_int(2, "little") * Cmt(read_int(1) * P(2), function(subject, pos, packed)
+    if packed < 128 then
       return true
     end
+    local out = pos + 3 * 2 ^ (packed % 8 + 1)
+    if out > #subject then
+      return false
+    end
+    return out
   end)
 }) / gif_size
 local webp_vp8_size = read_int(2, "little") / function(n)
