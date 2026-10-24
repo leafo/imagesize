@@ -57,3 +57,47 @@ local kind, dimensions = imagesize.detect_image_from_bytes(bytes)
 ```
 
 
+
+## MP4
+
+MP4 video is handled by a separate module since its metadata box (`moov`) is
+often at the end of the file. Instead of a byte prefix, it takes a read
+function so only the box headers and `moov` need to be fetched, typically 3 to
+5 reads. This makes it suitable for checking a file in remote storage with
+ranged requests.
+
+### `detect_mp4(read, file_size)`
+
+`read(offset, length)` must return exactly `length` bytes of the file starting
+at the 0-based `offset`, or `nil` on failure. `file_size` is the total size of
+the file.
+
+On success, returns a table with:
+
+* `width`, `height` &mdash; the display size from the header of the first video track that has one
+* `rotation` &mdash; `90`, `180`, or `270` if the video must be rotated clockwise for display, otherwise `nil`. `width` and `height` are not swapped
+* `duration` &mdash; length in seconds, or `nil` if unknown. Fragmented MP4 files store their duration in the fragments, so it is `nil` for them
+* `brand` &mdash; the major brand from the `ftyp` box, eg. `isom`
+* `tracks` &mdash; every track, each with `handler` (eg. `vide`, `soun`), `codec` (the first sample entry type, eg. `avc1`, `hvc1`, `mp4a`), and `width`, `height`, `rotation` from its header. Audio tracks usually report a `width` and `height` of `0`
+
+On error, `nil` and an error message is returned. Parsing gives up on files
+with more than 64 top-level boxes before `moov`, a `moov` over 8MB, or more
+than 64 tracks.
+
+```lua
+local mp4 = require("imagesize.mp4")
+
+local f = io.open("video.mp4", "rb")
+local size = f:seek("end")
+
+local info = assert(mp4.detect_mp4(function(offset, length)
+  f:seek("set", offset)
+  return f:read(length)
+end, size))
+
+-- info --> { width = 1920, height = 1080, duration = 12.5, brand = "isom", tracks = { ... } }
+```
+
+### `detect_mp4_from_bytes(byte_string)`
+
+Same as `detect_mp4`, for when the whole file is already in memory.

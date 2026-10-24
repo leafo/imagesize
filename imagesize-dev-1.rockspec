@@ -20,6 +20,7 @@ build = {
   type = "builtin",
   modules = {
     ["imagesize"] = "imagesize/init.lua",
+    ["imagesize.mp4"] = "imagesize/mp4.lua",
   }
 }
 
