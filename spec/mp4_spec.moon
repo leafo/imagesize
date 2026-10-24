@@ -21,9 +21,10 @@ tkhd = (width, height, matrix={1, 0, 0, 1}, version=0) ->
   head = version == 1 and "\1\0\0\0#{"\0"\rep 48}" or "#{"\0"\rep 40}"
   box "tkhd", "#{head}#{fixed a}#{fixed b}#{be32 0}#{fixed c}#{fixed d}#{be32 0}#{be32 0}#{be32 0}#{be32 0x40000000}#{fixed width}#{fixed height}"
 
-trak = (handler, codec, header) ->
+-- stsd_body replaces the generated single sample entry
+trak = (handler, codec, header, stsd_body) ->
   hdlr = box "hdlr", "#{"\0"\rep 8}#{handler}#{"\0"\rep 12}"
-  stsd = box "stsd", "#{"\0"\rep 4}#{be32 1}#{box codec, "\0"\rep 78}"
+  stsd = box "stsd", stsd_body or "#{"\0"\rep 4}#{be32 1}#{box codec, "\0"\rep 78}"
   box "trak", "#{header or ""}#{box "mdia", "#{hdlr}#{box "minf", box "stbl", stsd}"}"
 
 video_trak = (...) -> trak "vide", "avc1", tkhd ...
@@ -203,3 +204,30 @@ describe "imagesize.mp4", ->
 
     it "fails on truncated tkhd", ->
       assert.same { nil, "no video track" }, { detect_mp4_from_bytes mp4 mvhd(1000, 1000), trak "vide", "avc1", box "tkhd", "\0\0\0\0" }
+
+    it "fails on invalid box after a valid video track", ->
+      bytes = mp4 mvhd(1000, 1000), video_trak(640, 480), "#{be32 4}trak"
+      assert.same { nil, "malformed mp4 file" }, { detect_mp4_from_bytes bytes }
+
+    it "fails on child box larger than its trak", ->
+      bytes = mp4 mvhd(1000, 1000), box "trak", "#{tkhd 640, 480}#{be32 1000}mdia"
+      assert.same { nil, "malformed mp4 file" }, { detect_mp4_from_bytes bytes }
+
+    it "allows fewer than 8 bytes of padding at the end of a box", ->
+      info = detect_mp4_from_bytes mp4 mvhd(1000, 1000), video_trak(640, 480), "\0\0\0\0"
+      assert.same { 640, 480 }, { info.width, info.height }
+
+    it "fails on ftyp without room for a brand", ->
+      body = box "moov", "#{mvhd 1000, 1000}#{video_trak 640, 480}"
+      assert.same { nil, "not an mp4 file" }, { detect_mp4_from_bytes "#{box "ftyp"}#{body}" }
+      assert.same { nil, "not an mp4 file" }, { detect_mp4_from_bytes "#{large_box "ftyp", "isom"}#{body}" }
+
+    it "has no codec when stsd has no entries", ->
+      stsd_body = "#{"\0"\rep 4}#{be32 0}#{be32 16}FAKE#{"\0"\rep 8}"
+      info = detect_mp4_from_bytes mp4 mvhd(1000, 1000), trak "vide", "avc1", tkhd(640, 480), stsd_body
+      assert.is_nil info.tracks[1].codec
+
+    it "fails on sample entry larger than stsd", ->
+      stsd_body = "#{"\0"\rep 4}#{be32 1}#{be32 1000}avc1"
+      bytes = mp4 mvhd(1000, 1000), trak "vide", "avc1", tkhd(640, 480), stsd_body
+      assert.same { nil, "malformed mp4 file" }, { detect_mp4_from_bytes bytes }

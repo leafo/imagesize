@@ -33,13 +33,13 @@ read_box_header = function(str, pos, remaining)
   end
   local size = u32(str, pos)
   if not (size) then
-    return 
+    return false
   end
   local box_type = str:sub(pos + 4, pos + 7)
   local header_size = 8
   if size == 1 then
     if remaining < 16 then
-      return 
+      return false
     end
     size = u64(str, pos + 8)
     header_size = 16
@@ -47,15 +47,19 @@ read_box_header = function(str, pos, remaining)
     size = remaining
   end
   if not size or size < header_size or size > remaining then
-    return 
+    return false
   end
   return box_type, header_size, size
 end
+local MALFORMED = { }
 local each_box
 each_box = function(data, start_pos, stop_pos)
   local pos = start_pos
   return function()
     local box_type, header_size, size = read_box_header(data, pos, stop_pos - pos + 1)
+    if box_type == false then
+      error(MALFORMED)
+    end
     if not (box_type) then
       return 
     end
@@ -152,8 +156,13 @@ parse_trak = function(data, start_pos, stop_pos)
     return track
   end
   local stsd_start, stsd_stop = find_box(data, "stsd", stbl_start, stbl_stop)
-  if stsd_start and stsd_start + 15 <= stsd_stop then
-    track.codec = data:sub(stsd_start + 12, stsd_start + 15)
+  if stsd_start and stsd_start + 7 <= stsd_stop and u32(data, stsd_start + 4) > 0 then
+    local entry_start = stsd_start + 8
+    local codec = read_box_header(data, entry_start, stsd_stop - entry_start + 1)
+    if codec == false then
+      error(MALFORMED)
+    end
+    track.codec = codec
   end
   return track
 end
@@ -189,7 +198,7 @@ detect_mp4 = function(read, file_size)
       return nil, "failed to read file"
     end
     if i == 1 then
-      if not (header:sub(5, 8) == "ftyp" and #header >= 12) then
+      if not (header:sub(5, 8) == "ftyp" and #header >= 12 and u32(header, 1) >= 12) then
         return nil, "not an mp4 file"
       end
       brand = header:sub(9, 12)
@@ -207,8 +216,14 @@ detect_mp4 = function(read, file_size)
       if not (body and #body == moov_size) then
         return nil, "failed to read mp4 metadata"
       end
-      local err
-      moov, err = parse_moov(body)
+      local ok, moov_or_err, err = pcall(parse_moov, body)
+      if not (ok) then
+        if moov_or_err == MALFORMED then
+          return nil, "malformed mp4 file"
+        end
+        error(moov_or_err, 0)
+      end
+      moov = moov_or_err
       if not (moov) then
         return nil, err
       end
